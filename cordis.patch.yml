@@ -1,0 +1,4 @@
+# 在当前 DSH profile 中启用 WorkBuddy；登录态由本机桌面应用提供。
+- insert:
+    - id: workbuddy
+      name: dsh-workbuddy

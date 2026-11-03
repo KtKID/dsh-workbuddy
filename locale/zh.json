@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "WorkBuddy",
+    "description": "在 DeepSeek Harness 中使用 WorkBuddy 模型，查看账号积分，并由 DSH 执行工具。"
+  }
+}

@@ -1,0 +1,26 @@
+: heartbeat
+data: {"model": "deepseek-v4-flash", "object": "chat.completion.chunk", "choices": [{"index": 0, "delta": {"role": "assistant", "content": "", "reasoning_content": "", "function_call": null, "refusal": "", "tool_calls": [], "extra_fields": null}, "logprobs": null, "finish_reason": ""}], "usage": null}
+
+data: {"model": "deepseek-v4-flash", "object": "chat.completion.chunk", "choices": [{"index": 0, "delta": {"content": "Hello", "reasoning_content": "", "function_call": null, "refusal": "", "tool_calls": [], "extra_fields": null}, "logprobs": null, "finish_reason": ""}], "usage": null}
+
+data: {"model": "deepseek-v4-flash", "object": "chat.completion.chunk", "choices": [{"index": 0, "delta": {"content": "!", "reasoning_content": "", "function_call": null, "refusal": "", "tool_calls": [], "extra_fields": null}, "logprobs": null, "finish_reason": ""}], "usage": null}
+
+data: {"model": "deepseek-v4-flash", "object": "chat.completion.chunk", "choices": [{"index": 0, "delta": {"content": " How", "reasoning_content": "", "function_call": null, "refusal": "", "tool_calls": [], "extra_fields": null}, "logprobs": null, "finish_reason": ""}], "usage": null}
+
+data: {"model": "deepseek-v4-flash", "object": "chat.completion.chunk", "choices": [{"index": 0, "delta": {"content": " can", "reasoning_content": "", "function_call": null, "refusal": "", "tool_calls": [], "extra_fields": null}, "logprobs": null, "finish_reason": ""}], "usage": null}
+
+data: {"model": "deepseek-v4-flash", "object": "chat.completion.chunk", "choices": [{"index": 0, "delta": {"content": " I", "reasoning_content": "", "function_call": null, "refusal": "", "tool_calls": [], "extra_fields": null}, "logprobs": null, "finish_reason": ""}], "usage": null}
+
+data: {"model": "deepseek-v4-flash", "object": "chat.completion.chunk", "choices": [{"index": 0, "delta": {"content": " help", "reasoning_content": "", "function_call": null, "refusal": "", "tool_calls": [], "extra_fields": null}, "logprobs": null, "finish_reason": ""}], "usage": null}
+
+data: {"model": "deepseek-v4-flash", "object": "chat.completion.chunk", "choices": [{"index": 0, "delta": {"content": " you", "reasoning_content": "", "function_call": null, "refusal": "", "tool_calls": [], "extra_fields": null}, "logprobs": null, "finish_reason": ""}], "usage": null}
+
+data: {"model": "deepseek-v4-flash", "object": "chat.completion.chunk", "choices": [{"index": 0, "delta": {"content": " today", "reasoning_content": "", "function_call": null, "refusal": "", "tool_calls": [], "extra_fields": null}, "logprobs": null, "finish_reason": ""}], "usage": null}
+
+data: {"model": "deepseek-v4-flash", "object": "chat.completion.chunk", "choices": [{"index": 0, "delta": {"content": "?", "reasoning_content": "", "function_call": null, "refusal": "", "tool_calls": [], "extra_fields": null}, "logprobs": null, "finish_reason": ""}], "usage": null}
+
+data: {"model": "deepseek-v4-flash", "object": "chat.completion.chunk", "choices": [{"index": 0, "delta": {"role": "assistant", "content": "", "reasoning_content": "", "function_call": {"name": "", "arguments": ""}, "refusal": "", "tool_calls": [], "extra_fields": null}, "logprobs": null, "finish_reason": "stop"}], "usage": {"prompt_tokens": 5, "completion_tokens": 9, "total_tokens": 14, "completion_tokens_details": {"accepted_prediction_tokens": 0, "audio_tokens": 0, "reasoning_tokens": 0, "rejected_prediction_tokens": 0, "cached_tokens": 0}, "prompt_tokens_details": {"accepted_prediction_tokens": 0, "audio_tokens": 0, "reasoning_tokens": 0, "rejected_prediction_tokens": 0, "cached_tokens": 0}, "prompt_cache_hit_tokens": 0, "prompt_cache_miss_tokens": 5, "cache_read_input_tokens": 0, "cache_creation_input_tokens": 0, "prompt_cache_write_tokens": 0, "completion_thinking_tokens": 0, "credit": 0, "cached_tokens": 0}}
+
+data: [DONE]
+
+: fixture end
