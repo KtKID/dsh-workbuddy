@@ -24,7 +24,7 @@
 
 1. 打开 DSH 的「插件」→「添加插件」。
 2. 填入下面的预构建安装包地址，完成安装并选择「立即启用」。
-3. 在聊天模型选择器的 `workbuddy` 分组中选择模型。
+3. 按下面的「关联 WorkBuddy 账号」确认登录，再选择模型。
 
 ```text
 https://github.com/KtKID/dsh-workbuddy/releases/download/v0.1.0/dsh-workbuddy-0.1.0.tgz
@@ -61,6 +61,21 @@ pnpm pack --pack-destination dist
 ```
 
 构建依赖均从公开 npm 源获取。开发安装使用构建后的本地绝对目录，`dsh plugin --profile web add /absolute/path/dsh-workbuddy`。GitHub 仓库保存 TypeScript 源码，普通安装使用上面的 Release `.tgz`。
+
+## 关联 WorkBuddy 账号
+
+插件直接沿用 **WorkBuddy 桌面版当前登录的账号**。账号由运行 DSH 的这台 Mac、这个系统用户的本地登录态决定；插件会读取该登录态，并交给 WorkBuddy 官方 CLI 发起模型请求。
+
+1. 打开 `/Applications/WorkBuddy.app`，完成登录，确认桌面版当前使用的是你准备接入的 WorkBuddy 账号。
+2. 用同一个 macOS 系统用户启动 DSH，并安装、启用本插件。
+3. 打开 DSH「插件」→ **WorkBuddy** 详情页。总积分、模型数量和更新时间正常显示，就说明插件已读到有效登录态并成功查询该账号。有正确结果时直接使用；登录后页面仍显示错误时，点击一次「刷新余额和模型」。
+4. 新建聊天，在模型选择器的 **workbuddy** 分组中选择模型，发送一条简短消息。收到回复后，即可在 DSH 中使用这个 WorkBuddy 账号对话；用量与积分归该账号，实际消耗以 WorkBuddy 官方记录为准。
+
+### 切换账号或登录失效
+
+在 WorkBuddy 桌面版退出原账号、登录目标账号，再回到插件详情页点击一次「刷新余额和模型」。插件会重新读取本地登录态，并按账号隔离余额和模型缓存。出现 `WORKBUDDY_AUTH_UNAVAILABLE` 时，先在桌面版重新完成登录，再刷新一次。
+
+自定义安装位置、登录文件路径及凭据读取方式见 [使用与维护](docs/usage.md#登录与数据)。
 
 ## 查看额度与选择模型
 
