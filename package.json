@@ -1,8 +1,11 @@
 {
   "name": "dsh-workbuddy",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "type": "module",
   "description": "在 DeepSeek Harness 中使用 WorkBuddy 桌面账号的模型、积分查询和工具调用",
+  "bin": {
+    "dsh-workbuddy-export": "scripts/export-runtime.mjs"
+  },
   "exports": {
     ".": {
       "types": "./lib/index.d.ts",
@@ -20,26 +23,30 @@
     "build": "node build.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint src --max-warnings 0",
-    "format:check": "prettier src test build.mjs tsconfig.json package.json eslint.config.mjs cordis.patch.yml locale README.md docs .github --check",
+    "format:check": "prettier src test scripts build.mjs tsconfig.json package.json eslint.config.mjs cordis.patch.yml locale README.md docs .github --check",
     "test": "node --test test/*.test.mjs",
     "check": "pnpm typecheck && pnpm lint && pnpm format:check",
     "prepack": "pnpm build"
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "4.0.5-alpha.1 || ~4.0.6-alpha.1",
-    "@deepseek-ai/dsh-llm": "0.2.2-alpha.2",
-    "@deepseek-ai/schemastery": "3.18.5-alpha.1",
-    "@deepseek-ai/dsh-session": "0.2.2-alpha.2",
     "@deepseek-ai/dsh-client-connection": "0.2.2-alpha.2",
     "@deepseek-ai/dsh-client-locale": "0.2.2-alpha.2",
     "@deepseek-ai/dsh-client-ui-plugin-manager": "0.2.2-alpha.2",
+    "@deepseek-ai/dsh-client-ui-primitives": "0.2.2-alpha.2",
     "@deepseek-ai/dsh-client-ui-renderer": "0.2.2-alpha.2",
     "@deepseek-ai/dsh-client-ui-slots": "0.2.2-alpha.2",
-    "@deepseek-ai/dsh-client-ui-primitives": "0.2.2-alpha.2",
-    "react": "^18.2.0"
+    "@deepseek-ai/dsh-llm": "0.2.2-alpha.2",
+    "@deepseek-ai/dsh-session": "0.2.2-alpha.2",
+    "@deepseek-ai/schemastery": "3.18.5-alpha.1",
+    "react": "^18.2.0",
+    "@deepseek-ai/dsh-agent": "0.2.2-alpha.2",
+    "@deepseek-ai/dsh-user-approval": "0.2.2-alpha.2"
   },
   "dependencies": {
-    "zod": "4.4.3"
+    "zod": "4.4.3",
+    "@agentclientprotocol/sdk": "1.4.0",
+    "@modelcontextprotocol/sdk": "1.31.0"
   },
   "devDependencies": {
     "@deepseek-ai/cordis": "4.0.6-alpha.1",
@@ -58,6 +65,7 @@
     "@deepseek-ai/dsh-system-prompt": "0.2.2-alpha.2",
     "@deepseek-ai/dsh-tool-executor-native": "0.2.2-alpha.2",
     "@deepseek-ai/dsh-tools": "0.2.2-alpha.2",
+    "@deepseek-ai/dsh-user-approval": "0.2.2-alpha.2",
     "@deepseek-ai/schemastery": "3.18.5-alpha.1",
     "@eslint/js": "9.39.0",
     "@types/node": "22.20.0",
@@ -81,7 +89,8 @@
     "bundle": {
       "patch": "./cordis.patch.yml",
       "platforms": [
-        "darwin"
+        "darwin",
+        "linux"
       ]
     }
   },
@@ -109,6 +118,7 @@
   "packageManager": "pnpm@11.7.0",
   "files": [
     "lib",
+    "scripts/export-runtime.mjs",
     "cordis.patch.yml",
     "locale/*.json",
     "docs",

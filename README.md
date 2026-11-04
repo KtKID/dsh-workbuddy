@@ -100,8 +100,8 @@ pnpm pack --pack-destination dist
 
 ## 验证与维护
 
-2026-11-03，提取前的同一传输实现已在 DSH `0.2.2-alpha.2` 上完成真实 WorkBuddy DeepSeek-V4.1-Flash 对话，并成功刷新余额和模型目录。独立发行包使用本地夹具执行协议及 Session 测试，安装验收使用隔离 profile；详细范围见 [验证记录](docs/verification.md)。
+2026-11-04，官方 ACP 传输、原生与宿主工具、审批、跨步状态、用量和取消已在 60000 实际页面验收。独立包 70 项测试通过；实际页面、自动测试与平台覆盖范围见 [验证记录](docs/verification.md)。
 
-插件源自 [Kongming OS](https://github.com/KtKID/kongming-os) 的 `packages/kmh-workbuddy`，导入基线为提交 `7de7687a9053168278283b2b54226a3a637c6e72`。独立包保留原有传输与错误码，使用第三方组合包自己的详情页。维护问题提交到 [Issues](https://github.com/KtKID/dsh-workbuddy/issues)。
+插件源自 [Kongming OS](https://github.com/KtKID/kongming-os) 的 `packages/kmh-workbuddy`，初始导入基线为提交 `7de7687a9053168278283b2b54226a3a637c6e72`。独立包使用官方 ACP SDK，保留第三方组合包的详情页、安装配置与可选的 CLI 路径和私有凭据接入。维护问题提交到 [Issues](https://github.com/KtKID/dsh-workbuddy/issues)。
 
 发布流程与 DSH 官方打包规则见 [发布说明](docs/releasing.md)。

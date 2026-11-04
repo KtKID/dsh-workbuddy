@@ -4,6 +4,7 @@ import { dirname, join, resolve } from "node:path";
 import { LlmError } from "@deepseek-ai/dsh-llm";
 import { z } from "zod";
 import type { WorkBuddyConfig } from "./schema.js";
+import { resolveWorkBuddyCli } from "./runtime.js";
 
 const VersionSchema = z
   .string()
@@ -27,10 +28,7 @@ export async function readWorkBuddyClientHeaders(
   config: WorkBuddyConfig,
 ): Promise<Record<string, string>> {
   try {
-    const cliRoot = resolve(
-      dirname(config.electronPath),
-      "../Resources/app.asar.unpacked/cli",
-    );
+    const cliRoot = resolve(dirname(resolveWorkBuddyCli(config)), "..");
     const [productText, packageText] = await Promise.all([
       readFile(join(cliRoot, "product.json"), "utf8"),
       readFile(join(cliRoot, "package.json"), "utf8"),

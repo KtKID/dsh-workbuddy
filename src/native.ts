@@ -1,9 +1,16 @@
-/** 官方 CLI 执行模型回合；MCP 只负责转交工具请求，实际执行与审批由 KMH 持有。 */
+/** 官方 ACP SDK 连接 WB 内置 CLI；原生工具由 WB 执行，KMH 工具经官方 MCP SDK 转交。 */
 import { spawn } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
-import { createServer } from "node:http";
-import { dirname, resolve } from "node:path";
+import { Writable } from "node:stream";
 import { z } from "zod";
+import {
+  client,
+  methods,
+  ndJsonStream,
+  PROTOCOL_VERSION,
+  type RequestPermissionRequest,
+  type RequestPermissionResponse,
+} from "@agentclientprotocol/sdk";
 import {
   LlmError,
   projectToolUpdates,
@@ -12,28 +19,42 @@ import {
 } from "@deepseek-ai/dsh-llm";
 import type { Credentials, WorkBuddyConfig } from "./schema.js";
 import type { WorkBuddyTrace } from "./public-schema.js";
-import { NativeOutput } from "./native-output.js";
-import { NativeDecoder } from "./native-decoder.js";
-import { RpcSchema, McpCallSchema } from "./native-schema.js";
-/** 输入正式会话历史，输出 KMH 流；进程结束、取消、超时及工具转交都回收子进程和临时 HTTP 服务。 */
+import { AcpOutput } from "./acp-output.js";
+import { resolveWorkBuddyCli } from "./runtime.js";
+import { createKmhBridge, type KmhTransfer } from "./mcp-bridge.js";
+
+const Binding = z.object({
+  response: z.object({
+    transport: z.literal("acp-v1"),
+    nativeSessionId: z.string(),
+    historyDigest: z.string(),
+  }),
+});
+
+/** 输入 KMH 完整历史，输出有序流；SDK 管理协议与请求关联，本函数拥有子进程和临时工具桥。 */
 export async function* nativeCompletion(
   options: GenerateOptions,
   config: WorkBuddyConfig,
   credentials: Credentials,
   onTrace: (trace: WorkBuddyTrace) => void,
+  onPermission?: (
+    request: RequestPermissionRequest,
+    signal: AbortSignal,
+  ) => Promise<boolean>,
+  cwd = process.cwd(),
+  onRejectedTurn?: () => void,
 ): AsyncIterable<StreamChunk> {
   options.signal?.throwIfAborted();
-  const requestId = randomUUID(),
-    conversationId = options.sessionId ?? randomUUID(),
-    initialNativeSessionId = randomUUID();
+  const requestId = randomUUID();
+  const conversationId = options.sessionId ?? randomUUID();
+  const safe = (value: unknown): string =>
+    [credentials.accessToken, credentials.userId].reduce(
+      (s, key) => (key ? s.replaceAll(key, "[redacted]") : s),
+      JSON.stringify(value),
+    );
   const trace = (
     data: Omit<WorkBuddyTrace, "requestId" | "conversationId" | "model">,
   ) => onTrace({ requestId, conversationId, model: options.model, ...data });
-  const safe = (text: string) =>
-    [credentials.accessToken, credentials.userId].reduce(
-      (s, key) => (key ? s.replaceAll(key, "[redacted]") : s),
-      text,
-    );
   const projected = projectToolUpdates(
     options.messages,
     options.tools,
@@ -48,121 +69,34 @@ export async function* nativeCompletion(
     )
   )
     throw new LlmError("WORKBUDDY_TEXT_ONLY", "WORKBUDDY_TEXT_ONLY");
-  const declared = new Map(projected.tools?.map((t) => [t.name, t]) ?? []);
-  const transfers = new Map<string, z.infer<typeof McpCallSchema>>();
-  const bridgeToken = randomUUID();
-  const server = createServer((req, res) => {
-    void (async () => {
-      if (req.headers.authorization !== `Bearer ${bridgeToken}`) {
-        res.writeHead(401).end();
-        return;
-      }
-      if (req.method === "DELETE") {
-        res.writeHead(200).end();
-        return;
-      }
-      if (req.method !== "POST") {
-        res.writeHead(405).end();
-        return;
-      }
-      const parts: Buffer[] = [];
-      let size = 0;
-      for await (const part of req) {
-        const bytes = Buffer.isBuffer(part) ? part : Buffer.from(String(part));
-        size += bytes.length;
-        if (size > 2_000_000) {
-          res.writeHead(413).end();
-          return;
-        }
-        parts.push(bytes);
-      }
-      const message = RpcSchema.parse(
-        JSON.parse(Buffer.concat(parts).toString("utf8")),
-      );
-      if (message.id === undefined) {
-        res.writeHead(202).end();
-        return;
-      }
-      let result: unknown = {};
-      if (message.method === "initialize")
-        result = {
-          protocolVersion: "2024-11-05",
-          capabilities: { tools: {} },
-          serverInfo: { name: "kmh", version: "1.0.0" },
-        };
-      else if (message.method === "tools/list")
-        result = {
-          tools: [...declared.values()].map((t) => ({
-            name: t.name,
-            description: t.description,
-            inputSchema: t.parameters,
-          })),
-        };
-      else if (message.method === "tools/call") {
-        const call = McpCallSchema.parse(message.params);
-        if (!declared.has(call.name)) throw new Error("undeclared tool");
-        transfers.set(String(message.id), call);
-        // 只确认转交，工具执行仍由 KMH 负责；max-turns=1 阻止 CLI 进入下一次模型调用。
-        result = {
-          isError: true,
-          content: [
-            {
-              type: "text",
-              text: "KMH_TOOL_TRANSFERRED: execution is deferred to the host. This is a transport acknowledgement, not the tool result.",
-            },
-          ],
-        };
-      } else if (message.method !== "ping") {
-        res.writeHead(200, { "content-type": "application/json" }).end(
-          JSON.stringify({
-            jsonrpc: "2.0",
-            id: message.id,
-            error: { code: -32601, message: "Method not found" },
-          }),
-        );
-        return;
-      }
-      res
-        .writeHead(200, { "content-type": "application/json" })
-        .end(JSON.stringify({ jsonrpc: "2.0", id: message.id, result }));
-    })().catch(() => {
-      if (!res.headersSent) res.writeHead(400);
-      res.end();
-    });
-  });
-  let mcpConfig = { mcpServers: {} };
-  if (declared.size) {
-    await new Promise<void>((done, reject) => {
-      server.once("error", reject);
-      server.listen(0, "127.0.0.1", () => {
-        server.off("error", reject);
-        done();
-      });
-    });
-    const address = server.address();
-    if (!address || typeof address === "string")
-      throw new Error("WORKBUDDY_BRIDGE_ADDRESS");
-    mcpConfig = {
-      mcpServers: {
-        kmh: {
-          type: "http",
-          url: `http://127.0.0.1:${address.port}/mcp`,
-          headers: { Authorization: `Bearer ${bridgeToken}` },
-        },
-      },
-    };
-  }
-  const latest = projected.messages.at(-1);
-  const separateUser = latest?.role === "user";
+  const currentStart =
+    projected.messages.findLastIndex((m) => m.role !== "user") + 1;
+  const separateUser = projected.messages.at(-1)?.role === "user";
   const history = separateUser
-    ? projected.messages.slice(0, -1)
+    ? projected.messages.slice(0, currentStart)
     : projected.messages;
   const currentText = separateUser
-    ? latest.content
-        .map((block) => (block.type === "text" ? block.text : ""))
-        .join("\n")
-    : "Continue the current user task using the completed tool results in the conversation history.";
-  const digest = (messages: readonly { role: string; content: unknown }[]) =>
+    ? projected.messages
+        .slice(currentStart)
+        .flatMap((m) => m.content.map((b) => (b.type === "text" ? b.text : "")))
+        .join("\n\n")
+    : "Continue the active user task using the completed KMH tool results in the conversation history.";
+  const messageView = (
+    messages: readonly {
+      role: string;
+      content: unknown;
+      toolCallId?: unknown;
+      isError?: unknown;
+    }[],
+  ) =>
+    messages.map((message) => ({
+      role: message.role,
+      content: message.content,
+      ...(message.role === "tool"
+        ? { toolCallId: message.toolCallId, isError: message.isError }
+        : {}),
+    }));
+  const digest = (messages: Parameters<typeof messageView>[0]) =>
     createHash("sha256")
       .update(
         JSON.stringify({
@@ -174,71 +108,74 @@ export async function* nativeCompletion(
             credentials.enterpriseId ?? "",
             credentials.domain ?? "",
           ],
-          messages: messages.map((m) => ({ role: m.role, content: m.content })),
+          transport: "acp-v1",
+          historyVersion: 2,
+          cwd,
+          messages: messageView(messages),
         }),
       )
       .digest("hex");
-  const previous = history.at(-1);
-  const envelope = z
-    .object({ response: z.unknown() })
-    .safeParse(
-      previous?.role === "assistant" && previous.source?.kind === "model"
-        ? previous.source.replayState
-        : undefined,
-    );
-  const binding = z
-    .object({ nativeSessionId: z.string(), historyDigest: z.string() })
-    .safeParse(envelope.success ? envelope.data.response : undefined);
+  const anchor = history.findLastIndex(
+    (message) => message.role === "assistant",
+  );
+  const previous = history[anchor];
+  const binding = Binding.safeParse(
+    previous?.role === "assistant" && previous.source?.kind === "model"
+      ? previous.source.replayState
+      : undefined,
+  );
   const resume =
-    separateUser &&
     binding.success &&
-    binding.data.historyDigest === digest(history)
-      ? binding.data.nativeSessionId
+    binding.data.response.historyDigest ===
+      digest(history.slice(0, anchor + 1)) &&
+    projected.messages
+      .slice(anchor + 1)
+      .every((message) => message.role === "tool" || message.role === "user")
+      ? binding.data.response.nativeSessionId
       : undefined;
-  const nativeSessionId = resume ?? initialNativeSessionId;
-  // 官方 CLI 保留自己的系统协议；KMH 的上下文作为本次任务材料传入。
-  const prompt =
-    resume || (!history.length && !options.system)
+  const added = projected.messages.slice(anchor + 1);
+  const continuedPrompt = added.some((message) => message.role === "tool")
+    ? `Continue the active user task. KMH has completed the queued host operations. Consume these actual tool results and new user context, then continue the remaining work.\nKMH_NEW_MESSAGES_JSON:\n${JSON.stringify(messageView(added))}`
+    : currentText;
+  const fullPrompt =
+    !history.length && !options.system
       ? currentText
       : [
-          "You are handling a conversation in KMH. Use the prior conversation below as context, and answer only CURRENT_USER_MESSAGE at the end. The historical user messages have already been sent and answered.",
+          "Continue the active user task in KMH using the ordered conversation and CURRENT_USER_MESSAGE. User messages may also contain runtime, skill, and time context. Preserve pending tasks and use completed tool results.",
           options.system ? `HOST_TASK_CONTEXT:\n${options.system}` : "",
-          `PRIOR_CONVERSATION_JSON:\n${JSON.stringify(history)}\nEND_PRIOR_CONVERSATION`,
+          `PRIOR_CONVERSATION_JSON:\n${JSON.stringify(messageView(history))}\nEND_PRIOR_CONVERSATION`,
           `CURRENT_USER_MESSAGE:\n${currentText}`,
         ]
           .filter(Boolean)
           .join("\n\n");
-  const cli = resolve(
-    dirname(config.electronPath),
-    "../Resources/app.asar.unpacked/cli/dist/codebuddy-lite-wb.mjs",
+  const transfers: KmhTransfer[] = [];
+  const bridge = await createKmhBridge(projected.tools ?? [], (call) =>
+    transfers.push(call),
   );
+  const cli = resolveWorkBuddyCli(config);
   const args = [
     cli,
-    "--print",
-    "--output-format",
-    "stream-json",
-    "--include-partial-messages",
-    "--verbose",
+    "--serve",
+    "--acp",
+    "--acp-transport",
+    "stdio",
     "--tools",
-    "",
-    "--strict-mcp-config",
-    "--mcp-config",
-    JSON.stringify(mcpConfig),
-    "--setting-sources",
-    "",
+    "default",
+    "--permission-mode",
+    "default",
     "--max-turns",
-    "1",
-    ...(resume
-      ? ["--resume", nativeSessionId]
-      : ["--session-id", nativeSessionId]),
+    "99",
     "--model",
     options.model,
+    "--append-system-prompt",
+    "You are handling the active KMH task with WorkBuddy native tools and additional KMH tools. WorkBuddy executes its native tools. KMH tools use the exact advertised name kmh-<original-name>, for example kmh-read and kmh-bash. The host removes one leading kmh- and executes the original KMH tool. A KMH_TOOL_TRANSFERRED receipt acknowledges a queued KMH request. End the current response after that receipt so KMH can approve and execute the request. Continue when KMH supplies its actual tool result. Preserve the active task and supplied runtime context.",
+    "--strict-mcp-config",
+    "--mcp-config",
+    JSON.stringify(bridge.config),
+    "--setting-sources",
+    "",
+    ...(bridge.names.length ? ["--allowedTools", bridge.names.join(",")] : []),
   ];
-  if (declared.size)
-    args.push(
-      "--allowedTools",
-      [...declared.keys()].map((name) => `mcp__kmh__${name}`).join(","),
-    );
   const env = { ...process.env };
   for (const key of Object.keys(env))
     if (
@@ -250,176 +187,293 @@ export async function* nativeCompletion(
       delete env[key];
   env.CODEBUDDY_AUTH_TOKEN = credentials.accessToken;
   env.ACC_USER_ID = credentials.userId;
-  trace({
-    phase: "request",
-    body: JSON.stringify({
-      transport: "official-cli",
-      nativeSessionId,
-      system: options.system ?? "",
-      messages: projected.messages,
-      tools: projected.tools ?? [],
-    }),
-  });
-  const output = new NativeOutput(new Set(declared.keys()), Boolean(resume));
+  const output = new AcpOutput();
   const chunks: StreamChunk[] = [];
   let wake: () => void = () => {};
-  let closed = false,
-    timedOut = false,
-    totalBytes = 0;
-  let exitCode: number | null = null;
+  let nativeSessionId: string | undefined;
+  let resumed = false;
+  let prompting = false;
+  let permissionRejected = false;
+  let settled = false;
   let failure: Error | undefined;
   let stderr = "";
+  const lifetime = new AbortController();
   const child = spawn(process.execPath, args, {
     env,
+    cwd,
     stdio: ["pipe", "pipe", "pipe"],
     detached: process.platform !== "win32",
   });
-  let killTimer: ReturnType<typeof setTimeout> | undefined;
-  const stop = () => {
-    if (closed) return;
+  const exited = new Promise<void>((resolve) =>
+    child.once("close", () => resolve()),
+  );
+  child.stderr.on("data", (bytes: Buffer) => {
+    stderr = (stderr + bytes.toString()).slice(-16384);
+  });
+  child.stdin.on("error", () => {});
+  let receiving = true;
+  const incoming = new ReadableStream<Uint8Array>({
+    start(controller) {
+      child.stdout.on("data", (bytes: Buffer) => {
+        if (receiving) controller.enqueue(bytes);
+      });
+      child.stdout.once("end", () => {
+        if (receiving) {
+          receiving = false;
+          controller.close();
+        }
+      });
+      child.stdout.once("error", (error) => {
+        if (receiving) {
+          receiving = false;
+          controller.error(error);
+        }
+      });
+    },
+    cancel() {
+      receiving = false;
+    },
+  });
+  const wire = ndJsonStream(Writable.toWeb(child.stdin), incoming);
+  const connection = client({ name: "kmh-workbuddy" })
+    .onNotification(methods.client.session.update, ({ params }) => {
+      if (prompting && params.sessionId === nativeSessionId) {
+        try {
+          chunks.push(...output.push(params));
+          wake();
+        } catch (error) {
+          failure = error instanceof Error ? error : new Error(String(error));
+          connection.close(failure);
+        }
+      }
+    })
+    .onRequest(
+      methods.client.session.requestPermission,
+      async ({ params, signal }): Promise<RequestPermissionResponse> => {
+        const bound = AbortSignal.any([
+          signal,
+          lifetime.signal,
+          ...(options.signal ? [options.signal] : []),
+        ]);
+        if (params.sessionId !== nativeSessionId || !prompting || bound.aborted)
+          return { outcome: { outcome: "cancelled" } };
+        let allowed = false;
+        let withdraw = () => {};
+        const withdrawn = new Promise<boolean>((resolve) => {
+          withdraw = () => resolve(false);
+          bound.addEventListener("abort", withdraw, { once: true });
+          if (bound.aborted) withdraw();
+        });
+        try {
+          allowed = await Promise.race([
+            onPermission ? onPermission(params, bound) : Promise.resolve(false),
+            withdrawn,
+          ]);
+        } catch {
+          /* 宿主审批异常按拒绝回传。 */
+        } finally {
+          bound.removeEventListener("abort", withdraw);
+        }
+        if (bound.aborted) return { outcome: { outcome: "cancelled" } };
+        if (!allowed) permissionRejected = true;
+        const selected = params.options.find(
+          (o) => o.kind === (allowed ? "allow_once" : "reject_once"),
+        );
+        return selected
+          ? { outcome: { outcome: "selected", optionId: selected.optionId } }
+          : { outcome: { outcome: "cancelled" } };
+      },
+    )
+    .connect({
+      ...wire,
+      readable: wire.readable.pipeThrough(
+        new TransformStream({
+          transform(message, controller) {
+            trace({ phase: "event", raw: safe(message) });
+            controller.enqueue(message);
+          },
+        }),
+      ),
+    });
+  child.once("error", () =>
+    connection.close(
+      new LlmError(
+        "WORKBUDDY_ACP_PROCESS_FAILED",
+        "WORKBUDDY_ACP_PROCESS_FAILED",
+      ),
+    ),
+  );
+  let cancelTimer: ReturnType<typeof setTimeout> | undefined;
+  const cancel = () => {
+    lifetime.abort();
+    if (nativeSessionId && !connection.signal.aborted) {
+      connection.agent
+        .notify(methods.agent.session.cancel, { sessionId: nativeSessionId })
+        .catch(() => {});
+      cancelTimer ??= setTimeout(
+        () =>
+          connection.close(
+            new LlmError("WORKBUDDY_ACP_CANCELLED", "WORKBUDDY_ACP_CANCELLED"),
+          ),
+        1500,
+      );
+    } else connection.close();
+  };
+  options.signal?.addEventListener("abort", cancel, { once: true });
+  if (options.signal?.aborted) cancel();
+  const running = (async () => {
+    const initialized = await connection.agent.request(
+      methods.agent.initialize,
+      { protocolVersion: PROTOCOL_VERSION, clientCapabilities: {} },
+    );
+    if (initialized.protocolVersion !== PROTOCOL_VERSION)
+      throw new LlmError(
+        "WORKBUDDY_ACP_VERSION_UNSUPPORTED",
+        "WORKBUDDY_ACP_VERSION_UNSUPPORTED",
+      );
+    if (resume && initialized.agentCapabilities?.loadSession) {
+      nativeSessionId = resume;
+      try {
+        await connection.agent.request(methods.agent.session.load, {
+          sessionId: resume,
+          cwd,
+          mcpServers: [],
+        });
+        resumed = true;
+      } catch (error) {
+        if (connection.signal.aborted || options.signal?.aborted) throw error;
+        trace({
+          phase: "event",
+          raw: safe({
+            recovery: "rebuild-from-kmh-history",
+            error: error instanceof Error ? error.message : String(error),
+          }),
+        });
+      }
+    }
+    if (!resumed) {
+      const session = await connection.agent.request(
+        methods.agent.session.new,
+        { cwd, mcpServers: [] },
+      );
+      nativeSessionId = session.sessionId;
+    }
+    if (!nativeSessionId)
+      throw new LlmError(
+        "WORKBUDDY_ACP_SESSION_MISSING",
+        "WORKBUDDY_ACP_SESSION_MISSING",
+      );
+    trace({
+      phase: "request",
+      body: safe({
+        transport: "acp-v1",
+        nativeSessionId,
+        resumed,
+        system: options.system ?? "",
+        messages: projected.messages,
+        tools: projected.tools ?? [],
+        cwd,
+      }),
+    });
+    prompting = true;
+    const response = await connection.agent.request(
+      methods.agent.session.prompt,
+      {
+        sessionId: nativeSessionId,
+        prompt: [
+          { type: "text", text: resumed ? continuedPrompt : fullPrompt },
+        ],
+      },
+    );
+    if (
+      response.stopReason === "cancelled" &&
+      permissionRejected &&
+      !options.signal?.aborted
+    )
+      onRejectedTurn?.();
+    prompting = false;
+    lifetime.abort();
+    for (const call of transfers) chunks.push(...output.transfer(call));
+    const finished = output.finish(response, transfers.length > 0);
+    const metadata = {
+      transport: "acp-v1",
+      requestId,
+      conversationId,
+      nativeSessionId,
+      protocolMetadata: output.metadata,
+      historyDigest: digest([
+        ...projected.messages,
+        { role: "assistant", content: output.content },
+      ]),
+    };
+    for (const chunk of finished)
+      chunks.push(
+        chunk.type === "finish"
+          ? { ...chunk, replayState: { response: metadata } }
+          : chunk,
+      );
+    const terminal = finished.find((chunk) => chunk.type === "finish");
+    if (terminal?.reason.kind === "aborted")
+      trace({
+        phase: "complete",
+        raw: safe({ stopReason: response.stopReason }),
+      });
+    else if (terminal?.reason.kind === "error")
+      trace({ phase: "error", error: terminal.reason.failure.code });
+    else trace({ phase: "complete" });
+  })()
+    .catch((error: unknown) => {
+      failure = error instanceof Error ? error : new Error(String(error));
+    })
+    .finally(() => {
+      settled = true;
+      wake();
+    });
+  try {
+    while (!settled || chunks.length) {
+      options.signal?.throwIfAborted();
+      if (failure) throw failure;
+      const chunk = chunks.shift();
+      if (chunk) yield chunk;
+      else if (!settled)
+        await new Promise<void>((resolve) => {
+          wake = resolve;
+        });
+    }
+    options.signal?.throwIfAborted();
+    if (failure) throw failure;
+  } catch (error) {
+    if (options.signal?.aborted)
+      trace({ phase: "complete", raw: safe({ cancelled: true }) });
+    else trace({ phase: "error", error: "WORKBUDDY_ACP_FAILED" });
+    if (stderr) trace({ phase: "event", raw: safe(stderr) });
+    if (options.signal?.aborted) throw error;
+    throw new LlmError(
+      `WORKBUDDY_ACP_FAILED: ${safe(error instanceof Error ? error.message : error)}`,
+      "WORKBUDDY_ACP_FAILED",
+    );
+  } finally {
+    lifetime.abort();
+    options.signal?.removeEventListener("abort", cancel);
+    if (!settled) cancel();
+    connection.close();
+    child.stdin.end();
     const kill = (signal: NodeJS.Signals) => {
       try {
         if (child.pid && process.platform !== "win32")
           process.kill(-child.pid, signal);
         else child.kill(signal);
       } catch {
-        /* 已退出 */
+        /* 目标进程已退出。 */
       }
     };
     kill("SIGTERM");
-    killTimer ??= setTimeout(() => kill("SIGKILL"), 1500);
-  };
-  const decoder = new NativeDecoder((event, raw) => {
-    trace({ phase: "event", raw: safe(raw) });
-    chunks.push(...output.push(event));
-    wake();
-  });
-  child.stdout.on("data", (bytes: Buffer) => {
-    if (failure) return;
-    try {
-      totalBytes += bytes.length;
-      if (totalBytes > 16_000_000)
-        throw new LlmError(
-          "WORKBUDDY_CLI_OUTPUT_LIMIT",
-          "WORKBUDDY_CLI_OUTPUT_LIMIT",
-        );
-      decoder.push(bytes);
-    } catch (error) {
-      failure =
-        error instanceof Error
-          ? error
-          : new LlmError("WORKBUDDY_CLI_PROTOCOL", "WORKBUDDY_CLI_PROTOCOL");
-      stop();
-      wake();
-    }
-  });
-  child.stderr.on("data", (bytes: Buffer) => {
-    stderr = (stderr + bytes.toString()).slice(-16384);
-  });
-  child.stdin.on("error", () => {});
-  child.stdin.end(prompt);
-  const completion = new Promise<void>((done) => {
-    child.once("error", () => {
-      failure = new LlmError(
-        "WORKBUDDY_CLI_PROCESS_FAILED",
-        "WORKBUDDY_CLI_PROCESS_FAILED",
-      );
-      wake();
-    });
-    child.once("close", (code) => {
-      exitCode = code;
-      closed = true;
-      if (!failure) {
-        try {
-          decoder.end();
-        } catch (error) {
-          failure =
-            error instanceof Error
-              ? error
-              : new LlmError(
-                  "WORKBUDDY_CLI_PROTOCOL",
-                  "WORKBUDDY_CLI_PROTOCOL",
-                );
-        }
-      }
-      done();
-      wake();
-    });
-  });
-  const timer = setTimeout(() => {
-    timedOut = true;
-    stop();
-    wake();
-  }, config.timeoutMs);
-  options.signal?.addEventListener("abort", stop, { once: true });
-  if (options.signal?.aborted) stop();
-  try {
-    while (!closed || chunks.length) {
-      options.signal?.throwIfAborted();
-      if (failure) throw failure;
-      const chunk = chunks.shift();
-      if (chunk) yield chunk;
-      else if (!closed)
-        await new Promise<void>((resolve) => {
-          wake = resolve;
-        });
-    }
-    options.signal?.throwIfAborted();
-    if (timedOut)
-      throw new LlmError("WORKBUDDY_CLI_TIMEOUT", "WORKBUDDY_CLI_TIMEOUT");
-    if (failure) throw failure;
-    for (const [id, call] of transfers)
-      yield* output.transfer(
-        call.name,
-        call.arguments,
-        `mcp-${requestId}-${id}`,
-      );
-    const metadata = {
-      requestId,
-      conversationId,
-      nativeSessionId: output.result?.session_id ?? nativeSessionId,
-      ...(output.responseId ? { responseId: output.responseId } : {}),
-      providerRequestIds: [...output.requestIds],
-      protocolMetadata: output.metadata,
-      ...(output.calls.length
-        ? {}
-        : {
-            historyDigest: digest([
-              ...projected.messages,
-              { role: "assistant", content: output.content },
-            ]),
-          }),
-    };
-    for (const chunk of output.finish(exitCode)) {
-      if (chunk.type === "finish") {
-        const failed =
-          chunk.reason.kind === "error" || chunk.reason.kind === "aborted";
-        trace({
-          phase: failed ? "error" : "complete",
-          ...(output.responseId ? { responseId: output.responseId } : {}),
-          ...(output.credit === undefined ? {} : { credit: output.credit }),
-          ...(chunk.reason.kind === "error" || chunk.reason.kind === "aborted"
-            ? { error: chunk.reason.failure.code }
-            : {}),
-        });
-        yield { ...chunk, replayState: { response: metadata } };
-      } else yield chunk;
-    }
-  } catch (error) {
-    if (stderr) trace({ phase: "event", raw: safe(stderr) });
-    trace({
-      phase: "error",
-      error: error instanceof LlmError ? error.code : "WORKBUDDY_CLI_FAILED",
-    });
-    throw error;
-  } finally {
-    clearTimeout(timer);
-    options.signal?.removeEventListener("abort", stop);
-    stop();
-    await completion;
-    if (killTimer) clearTimeout(killTimer);
-    server.closeAllConnections();
-    if (server.listening)
-      await new Promise<void>((done) => server.close(() => done()));
+    const force = setTimeout(() => kill("SIGKILL"), 1500);
+    await exited;
+    clearTimeout(force);
+    if (cancelTimer) clearTimeout(cancelTimer);
+    await running;
+    await connection.closed;
+    await bridge.close();
   }
 }

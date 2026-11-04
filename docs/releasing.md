@@ -4,11 +4,11 @@
 
 ## 包结构
 
-- `package.json` 声明 `dsh.bundle.patch`、`engines.dsh`、macOS 平台和 Host / Client 导出。
+- `package.json` 声明 `dsh.bundle.patch`、`engines.dsh`、macOS、Linux 平台和 Host / Client 导出。
 - `cordis.patch.yml` 按包名插入 `workbuddy` 插件行。
 - `lib/` 提供预构建 Host 模块、类型声明和浏览器模块；浏览器模块加载器 ID 为 `dsh-workbuddy`。
 - `locale/` 和 `icon.svg` 提供可分发的插件名称、简介与原创图标。
-- 需要与宿主共享实例的 DSH 包和 Cordis 放在 peerDependencies；开发时使用同版本 devDependencies。`zod` 为普通运行依赖。
+- 需要与宿主共享实例的 DSH 包和 Cordis 放在 peerDependencies；开发时使用同版本 devDependencies。官方 ACP SDK、MCP SDK 与 `zod` 为普通运行依赖。
 
 ## 生成发行包
 

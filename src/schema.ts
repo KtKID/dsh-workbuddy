@@ -1,6 +1,6 @@
 /** WorkBuddy MVP 的配置、只读登录凭据与远程响应协议；外部数据在此校验。 */
 import { homedir } from "node:os";
-import { join, resolve } from "node:path";
+import { isAbsolute, join, resolve } from "node:path";
 import schema from "@deepseek-ai/schemastery";
 import { z } from "zod";
 
@@ -10,6 +10,8 @@ export const ConfigSchema = z.strictObject({
   model: z.string().min(1).default("deepseek-v4-flash"),
   maxTokens: z.number().int().positive().default(512),
   timeoutMs: z.number().int().positive().default(60_000),
+  cliPath: z.string().min(1).refine(isAbsolute).optional(),
+  credentialsFile: z.string().min(1).refine(isAbsolute).optional(),
   traceDir: z
     .string()
     .min(1)
@@ -35,7 +37,7 @@ export const ConfigSchema = z.strictObject({
     ),
 });
 export type WorkBuddyConfig = z.infer<typeof ConfigSchema>;
-export const Config = schema.transform(
+export const Config: schema<unknown, WorkBuddyConfig> = schema.transform(
   schema.any<unknown>(),
   (value: unknown) => ConfigSchema.parse(value),
 );

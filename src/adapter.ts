@@ -16,6 +16,7 @@ import { readWorkBuddyClientHeaders } from "./client-info.js";
 import { readDesktopCredentials } from "./credentials.js";
 import { parseResponse } from "./protocol.js";
 import { ENDPOINT, type Credentials, type WorkBuddyConfig } from "./schema.js";
+import type { RequestPermissionRequest } from "@agentclientprotocol/sdk";
 
 export interface TransportDependencies {
   credentials?: () => Promise<Credentials>;
@@ -23,6 +24,13 @@ export interface TransportDependencies {
   onCredit?: (credit: number) => void;
   models?: () => Promise<readonly LlmModelInfo[]>;
   onTrace?: (sessionId: string | undefined, trace: WorkBuddyTrace) => void;
+  onPermission?: (
+    options: GenerateOptions,
+    request: RequestPermissionRequest,
+    signal: AbortSignal,
+  ) => Promise<boolean>;
+  cwd?: (options: GenerateOptions) => string | undefined;
+  onRejectedTurn?: (options: GenerateOptions) => void;
 }
 
 /** 持有一次实例的配置；每轮读取当前登录凭据并执行一次请求。 */
@@ -67,14 +75,25 @@ export class WorkBuddyAdapter extends LlmAdapter {
     options.signal?.throwIfAborted();
     await this.resolveModel(options.provider, options.model);
     if (this.config.transport === "cli") {
-      const credentials = this.dependencies.credentials
-        ? await this.dependencies.credentials()
-        : await readDesktopCredentials(this.config);
-      yield* nativeCompletion(options, this.config, credentials, (trace) => {
-        this.dependencies.onTrace?.(options.sessionId, trace);
-        if (trace.credit !== undefined)
-          this.dependencies.onCredit?.(trace.credit);
-      });
+      const credentials = await (this.dependencies.credentials
+        ? this.dependencies.credentials()
+        : readDesktopCredentials(this.config));
+      const onPermission = this.dependencies.onPermission;
+      yield* nativeCompletion(
+        options,
+        this.config,
+        credentials,
+        (trace) => {
+          this.dependencies.onTrace?.(options.sessionId, trace);
+          if (trace.credit !== undefined)
+            this.dependencies.onCredit?.(trace.credit);
+        },
+        onPermission
+          ? (request, signal) => onPermission(options, request, signal)
+          : undefined,
+        this.dependencies.cwd?.(options),
+        () => this.dependencies.onRejectedTurn?.(options),
+      );
       return;
     }
     const projected = projectToolUpdates(
@@ -118,9 +137,9 @@ export class WorkBuddyAdapter extends LlmAdapter {
     if (options.system)
       messages.unshift({ role: "system", content: options.system });
     const clientHeaders = await readWorkBuddyClientHeaders(this.config);
-    const credentials = this.dependencies.credentials
-      ? await this.dependencies.credentials()
-      : await readDesktopCredentials(this.config);
+    const credentials = await (this.dependencies.credentials
+      ? this.dependencies.credentials()
+      : readDesktopCredentials(this.config));
     if (credentials.expiresAt <= Date.now())
       throw new LlmError("WORKBUDDY_AUTH_EXPIRED", "WORKBUDDY_AUTH_EXPIRED");
     const signal = options.signal

@@ -11,7 +11,12 @@ import Loop from "@deepseek-ai/dsh-agent-loop";
 import * as Persistence from "@deepseek-ai/dsh-session-persistence-jsonl";
 import * as NativeExecutor from "@deepseek-ai/dsh-tool-executor-native";
 import * as plugin from "../../lib/index.js";
-export async function sessionRuntime(root, config = {}, compression = "none") {
+export async function sessionRuntime(
+  root,
+  config = {},
+  compression = "none",
+  cwd = process.cwd(),
+) {
   const ctx = new Context();
   for (const [entry, settings] of [
     [Llm, {}],
@@ -32,7 +37,7 @@ export async function sessionRuntime(root, config = {}, compression = "none") {
       const agent = await ctx.agentLoop.create(
         SessionId(id),
         { provider: "workbuddy", model, maxTokens: 512 },
-        { cwd: process.cwd() },
+        { cwd },
       );
       agent.followup(
         createUserMessage({
