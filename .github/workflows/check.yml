@@ -36,9 +36,12 @@ jobs:
       - run: pnpm check
       - run: pnpm test
       - run: pnpm pack --pack-destination dist
-      - name: Generate checksums
+      - name: Prepare release assets
         working-directory: dist
-        run: sha256sum *.tgz > SHA256SUMS
+        run: |
+          VERSION="$(node -p 'require("../package.json").version')"
+          cp "dsh-workbuddy-${VERSION}.tgz" dsh-workbuddy.tgz
+          sha256sum *.tgz > SHA256SUMS
       - uses: actions/upload-artifact@v4
         with:
           name: dsh-workbuddy
@@ -69,7 +72,7 @@ jobs:
         run: |
           VERSION="${RELEASE_TAG#v}"
           gh release create "$RELEASE_TAG" \
-            "dist/dsh-workbuddy-${VERSION}.tgz" dist/SHA256SUMS \
+            "dist/dsh-workbuddy-${VERSION}.tgz" dist/dsh-workbuddy.tgz dist/SHA256SUMS \
             --verify-tag \
             --title "dsh-workbuddy $RELEASE_TAG" \
             --generate-notes \
