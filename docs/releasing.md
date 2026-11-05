@@ -10,6 +10,8 @@
 - `locale/` 和 `icon.svg` 提供可分发的插件名称、简介与原创图标。
 - 需要与宿主共享实例的 DSH 包和 Cordis 放在 peerDependencies；开发时使用同版本 devDependencies。官方 ACP SDK、MCP SDK 与 `zod` 为普通运行依赖。
 
+支持的 DSH 版本以 [版本兼容](compatibility.md) 和包清单为准。开发依赖固定在其中一套宿主；兼容脚本按各自锁文件验证两套宿主，并使用同一 `.tgz` 的构建产物。
+
 ## 生成发行包
 
 ```sh
@@ -29,6 +31,8 @@ pnpm pack --pack-destination dist
 更新包版本，提交通过验证的内容，推送对应的 `v<version>` 标签。README 的安装地址固定为 `https://github.com/KtKID/dsh-workbuddy/releases/latest/download/dsh-workbuddy.tgz`，GitHub 将其转到最新正式 Release 的同名资源。
 
 GitHub Actions 的 `Check and Release` 工作流在每次 push 和 pull request 时执行构建、类型、格式、测试与打包，并保存 `.tgz` 和 `SHA256SUMS`。推送 `v<version>` 标签时，先核对标签与包版本一致，再执行这些检查；检查成功后自动创建同名 GitHub Release，附上预构建安装包、校验值和提交记录。发布权限限定在 Release job。
+
+`compatibility` 矩阵下载同一个构建产物，在两套 DSH 依赖下分别执行类型与安装包回归；Release job 等待两项兼容检查全部成功。目标锁文件更新后，先执行 [兼容检查命令](compatibility.md)，再提交包清单和对应锁文件。
 
 每个 Release 同时提供 `dsh-workbuddy-<version>.tgz` 和 `dsh-workbuddy.tgz`，两者内容相同；前者用于固定版本，后者供最新版安装地址使用。`SHA256SUMS` 包含这两个文件的校验值。
 

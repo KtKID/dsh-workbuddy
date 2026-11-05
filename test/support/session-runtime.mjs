@@ -9,8 +9,12 @@ import Tools from "@deepseek-ai/dsh-tools";
 import Agents from "@deepseek-ai/dsh-agent";
 import Loop from "@deepseek-ai/dsh-agent-loop";
 import * as Persistence from "@deepseek-ai/dsh-session-persistence-jsonl";
-import * as NativeExecutor from "@deepseek-ai/dsh-tool-executor-native";
 import * as plugin from "../../lib/index.js";
+// 旧版 dsh-tools 包含执行器；新版宿主按独立插件注册同一能力。
+const nativeExecutor =
+  process.env.DSH_TEST_RUNTIME_VERSION === "0.2.1-rc.2"
+    ? []
+    : [[await import("@deepseek-ai/dsh-tool-executor-native"), {}]];
 export async function sessionRuntime(
   root,
   config = {},
@@ -24,7 +28,7 @@ export async function sessionRuntime(
     [Projection, {}],
     [Prompt, {}],
     [Tools, {}],
-    [NativeExecutor, {}],
+    ...nativeExecutor,
     [Agents, {}],
     [Persistence, { root, compression }],
     [Loop, { agents: [] }],

@@ -12,7 +12,7 @@
 | ---------- | -------------------------------------------------------- |
 | 运行位置   | 安装 DSH 的同一台 Mac                                    |
 | WorkBuddy  | 安装在 `/Applications/WorkBuddy.app`，并在桌面版完成登录 |
-| DSH        | `0.2.2-alpha.2`                                          |
+| DSH        | 两套已验证版本，见 [版本兼容](docs/compatibility.md)     |
 | Node.js    | `>=24.9.0`；使用命令行安装时需要可运行的 `dsh` 和 pnpm   |
 | 已验证版本 | WorkBuddy `5.9.3`，内置 CLI `2.165.0`                    |
 
