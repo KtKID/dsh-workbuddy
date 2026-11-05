@@ -1,6 +1,6 @@
 {
   "name": "dsh-workbuddy",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "type": "module",
   "description": "在 DeepSeek Harness 中使用 WorkBuddy 桌面账号的模型、积分查询和工具调用",
   "bin": {

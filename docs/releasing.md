@@ -26,6 +26,10 @@ pnpm pack --pack-destination dist
 
 ## 发布版本
 
-更新版本及 README 的安装地址，提交通过验证的内容，创建对应的 `v<version>` 标签。将 `dist/dsh-workbuddy-<version>.tgz` 附到同名 GitHub Release，记录验证过的 DSH、WorkBuddy 和 Node 版本。
+更新版本及 README 的安装地址，提交通过验证的内容，推送对应的 `v<version>` 标签。
+
+GitHub Actions 的 `Check and Release` 工作流在每次 push 和 pull request 时执行构建、类型、格式、测试与打包，并保存 `.tgz` 和 `SHA256SUMS`。推送 `v<version>` 标签时，先核对标签与包版本一致，再执行这些检查；检查成功后自动创建同名 GitHub Release，附上预构建安装包、校验值和提交记录。发布权限限定在 Release job。
+
+在 [Actions](https://github.com/KtKID/dsh-workbuddy/actions) 核对标签运行结果，在 [Releases](https://github.com/KtKID/dsh-workbuddy/releases) 核对安装包及校验值。版本、构建或测试检查失败时，修复对应诊断后重新执行；发布失败时，先核对该标签的 Release 状态，再重试发布 job。真实 DSH、WorkBuddy 和 Node 的验证版本与覆盖范围集中在 [验证记录](verification.md)。
 
 GitHub 的源码归档供开发使用；用户安装入口是 Release 的预构建 `.tgz`。这种分发方式符合 DSH 官方的 tarball 安装流程。后续选择从 Git 直接安装时，需要自包含 `prepare` 构建，并按 DSH 文档处理 pnpm 的构建脚本授权及 commit 固定。

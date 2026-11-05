@@ -27,7 +27,7 @@
 3. 按下面的「关联 WorkBuddy 账号」确认登录，再选择模型。
 
 ```text
-https://github.com/KtKID/dsh-workbuddy/releases/download/v0.1.0/dsh-workbuddy-0.1.0.tgz
+https://github.com/KtKID/dsh-workbuddy/releases/download/v0.2.0/dsh-workbuddy-0.2.0.tgz
 ```
 
 Release 安装包包含已构建的 `lib/`、界面模块和组合包配置，安装时可直接加载。包内的 DSH 依赖由当前宿主提供，`zod` 由包管理器安装。
@@ -35,7 +35,7 @@ Release 安装包包含已构建的 `lib/`、界面模块和组合包配置，�
 ### 命令行安装到 Web profile
 
 ```sh
-dsh plugin --profile web add https://github.com/KtKID/dsh-workbuddy/releases/download/v0.1.0/dsh-workbuddy-0.1.0.tgz
+dsh plugin --profile web add https://github.com/KtKID/dsh-workbuddy/releases/download/v0.2.0/dsh-workbuddy-0.2.0.tgz
 dsh --profile web --dump-config
 dsh web
 ```
@@ -45,7 +45,7 @@ dsh web
 网络下载受限时，从 [Releases](https://github.com/KtKID/dsh-workbuddy/releases) 下载同一文件，再用绝对路径安装：
 
 ```sh
-dsh plugin --profile web add /absolute/path/dsh-workbuddy-0.1.0.tgz
+dsh plugin --profile web add /absolute/path/dsh-workbuddy-0.2.0.tgz
 ```
 
 ### 从源码开发
