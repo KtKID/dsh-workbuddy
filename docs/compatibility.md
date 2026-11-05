@@ -1,6 +1,6 @@
 # DSH 版本兼容
 
-WorkBuddy `0.2.1` 的同一份安装包支持以下两套 DSH：
+同一份 WorkBuddy 安装包支持以下两套 DSH。表中的实际安装记录来自插件 `v0.2.1`。
 
 | DSH             | Cordis          | 自动回归              | 实际安装                                     |
 | --------------- | --------------- | --------------------- | -------------------------------------------- |
@@ -19,7 +19,7 @@ node scripts/verify-compatibility.mjs 0.2.1-rc.2 "dist/dsh-workbuddy-${WORKBUDDY
 node scripts/verify-compatibility.mjs 0.2.2-alpha.2 "dist/dsh-workbuddy-${WORKBUDDY_VERSION}.tgz"
 ```
 
-脚本创建隔离目录，按固定锁文件安装目标 DSH 依赖，加载安装包中的构建产物，并使用合成登录与本地 ACP Agent 执行回归。临时目录路径写入执行输出，检查完成后由调用者按需保留证据或清理。
+脚本创建隔离目录，按固定锁文件安装目标 DSH 依赖，加载安装包中的构建产物，并使用合成登录与本地 ACP Agent 执行回归。执行输出记录临时目录路径。通过后脚本清理目录，失败时保留目录供排查。
 
 ## 变更记录
 
