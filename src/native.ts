@@ -235,7 +235,7 @@ export async function* nativeCompletion(
     },
   });
   const wire = ndJsonStream(Writable.toWeb(child.stdin), incoming);
-  const connection = client({ name: "kmh-workbuddy" })
+  const connection = client({ name: "workbuddy" })
     .onNotification(methods.client.session.update, ({ params }) => {
       if (prompting && params.sessionId === nativeSessionId) {
         try {

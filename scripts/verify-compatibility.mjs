@@ -8,6 +8,7 @@ import {
   mkdtemp,
   readFile,
   readdir,
+  rm,
   symlink,
   writeFile,
 } from "node:fs/promises";
@@ -123,3 +124,4 @@ run(process.execPath, ["--test", ...tests], {
 console.log(
   `Compatibility passed: ${packed.name}@${packed.version} on DSH ${target}`,
 );
+await rm(fixture, { recursive: true, force: true });

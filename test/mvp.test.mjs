@@ -17,7 +17,7 @@ import { ConfigSchema, ENDPOINT } from "../lib/schema.js";
 // 每个夹具只有公开元数据；Electron 路径刻意留空，任何真实进程启动均会失败。
 const fixtureRoots = [];
 async function installation() {
-  const root = await mkdtemp(join(tmpdir(), "kmh-workbuddy-test-"));
+  const root = await mkdtemp(join(tmpdir(), "workbuddy-test-"));
   fixtureRoots.push(root);
   const cli = join(
     root,
@@ -228,10 +228,7 @@ test("T3b 单次 HTTP 携带登录凭据和完整文本历史", async () => {
     assert.equal(headers.get("x-ide-type"), "WorkBuddy");
     assert.equal(headers.get("x-ide-name"), "WorkBuddy");
     assert.equal(headers.get("x-ide-version"), "9.8.7");
-    assert.doesNotMatch(
-      JSON.stringify([...headers]),
-      /kongming|deepseek-harness/i,
-    );
+    assert.doesNotMatch(JSON.stringify([...headers]), /deepseek-harness/i);
     assert.ok(headers.get("x-conversation-id"));
     assert.deepEqual(JSON.parse(options.body).messages, [
       { role: "system", content: "text-only MVP" },

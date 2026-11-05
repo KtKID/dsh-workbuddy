@@ -1,6 +1,5 @@
 {
   "name": "dsh-workbuddy",
-  "version": "0.2.1",
   "type": "module",
   "description": "在 DeepSeek Harness 中使用 WorkBuddy 桌面账号的模型、积分查询和工具调用",
   "bin": {
@@ -27,26 +26,6 @@
     "test": "node --test test/*.test.mjs",
     "check": "pnpm typecheck && pnpm lint && pnpm format:check",
     "prepack": "pnpm build"
-  },
-  "peerDependencies": {
-    "@deepseek-ai/cordis": "~4.0.5 || 4.0.5-alpha.1 || ~4.0.6-alpha.1",
-    "@deepseek-ai/dsh-client-connection": "0.2.1-rc.2 || 0.2.2-alpha.2",
-    "@deepseek-ai/dsh-client-locale": "0.2.1-rc.2 || 0.2.2-alpha.2",
-    "@deepseek-ai/dsh-client-ui-plugin-manager": "0.2.1-rc.2 || 0.2.2-alpha.2",
-    "@deepseek-ai/dsh-client-ui-primitives": "0.2.1-rc.2 || 0.2.2-alpha.2",
-    "@deepseek-ai/dsh-client-ui-renderer": "0.2.1-rc.2 || 0.2.2-alpha.2",
-    "@deepseek-ai/dsh-client-ui-slots": "0.2.1-rc.2 || 0.2.2-alpha.2",
-    "@deepseek-ai/dsh-llm": "0.2.1-rc.2 || 0.2.2-alpha.2",
-    "@deepseek-ai/dsh-session": "0.2.1-rc.2 || 0.2.2-alpha.2",
-    "@deepseek-ai/schemastery": "3.18.5-alpha.1",
-    "react": "^18.2.0",
-    "@deepseek-ai/dsh-agent": "0.2.1-rc.2 || 0.2.2-alpha.2",
-    "@deepseek-ai/dsh-user-approval": "0.2.1-rc.2 || 0.2.2-alpha.2"
-  },
-  "dependencies": {
-    "zod": "4.4.3",
-    "@agentclientprotocol/sdk": "1.4.0",
-    "@modelcontextprotocol/sdk": "1.31.0"
   },
   "devDependencies": {
     "@deepseek-ai/cordis": "4.0.6-alpha.1",
@@ -112,10 +91,6 @@
     "llm",
     "plugin"
   ],
-  "engines": {
-    "node": ">=24.9.0",
-    "dsh": "0.2.1-rc.2 || 0.2.2-alpha.2"
-  },
   "packageManager": "pnpm@11.7.0",
   "files": [
     "lib",
@@ -126,5 +101,30 @@
     "icon.svg",
     "README.md",
     "LICENSE"
-  ]
+  ],
+  "version": "0.2.1",
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "~4.0.5 || 4.0.5-alpha.1 || ~4.0.6-alpha.1",
+    "@deepseek-ai/dsh-agent": "0.2.1-rc.2 || 0.2.2-alpha.2",
+    "@deepseek-ai/dsh-client-connection": "0.2.1-rc.2 || 0.2.2-alpha.2",
+    "@deepseek-ai/dsh-client-locale": "0.2.1-rc.2 || 0.2.2-alpha.2",
+    "@deepseek-ai/dsh-client-ui-plugin-manager": "0.2.1-rc.2 || 0.2.2-alpha.2",
+    "@deepseek-ai/dsh-client-ui-primitives": "0.2.1-rc.2 || 0.2.2-alpha.2",
+    "@deepseek-ai/dsh-client-ui-renderer": "0.2.1-rc.2 || 0.2.2-alpha.2",
+    "@deepseek-ai/dsh-client-ui-slots": "0.2.1-rc.2 || 0.2.2-alpha.2",
+    "@deepseek-ai/dsh-llm": "0.2.1-rc.2 || 0.2.2-alpha.2",
+    "@deepseek-ai/dsh-session": "0.2.1-rc.2 || 0.2.2-alpha.2",
+    "@deepseek-ai/dsh-user-approval": "0.2.1-rc.2 || 0.2.2-alpha.2",
+    "@deepseek-ai/schemastery": "3.18.5-alpha.1",
+    "react": "^18.2.0"
+  },
+  "dependencies": {
+    "@agentclientprotocol/sdk": "1.4.0",
+    "@modelcontextprotocol/sdk": "1.31.0",
+    "zod": "4.4.3"
+  },
+  "engines": {
+    "node": ">=24.9.0",
+    "dsh": "0.2.1-rc.2 || 0.2.2-alpha.2"
+  }
 }

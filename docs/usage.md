@@ -54,7 +54,7 @@ DSH 的 Session 保存会话和原生请求关联。插件的 `traceDir` 按会�
 | `WORKBUDDY_CHANNEL_REJECTED`        | 结束本次调用，核对 WorkBuddy 版本及传输配置，保留错误记录  |
 | `WORKBUDDY_ACP_FAILED`              | 根据传输记录核对官方 SDK、WB 版本、认证及 prompt 返回错误  |
 
-DSH 版本兼容检查失败时，安装包声明的 `engines.dsh` 和当前运行版本应对应。当前发布基线为 `0.2.2-alpha.2`，后续兼容版本随验证结果更新。
+DSH 版本兼容检查失败时，安装包声明的 `engines.dsh` 和当前运行版本应对应。支持范围与验证入口见 [DSH 版本兼容](compatibility.md)。
 
 ## 更新和卸载
 
