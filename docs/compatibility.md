@@ -14,14 +14,15 @@ WorkBuddy `0.2.1` 的同一份安装包支持以下两套 DSH：
 开发者在构建并打包后执行：
 
 ```sh
-node scripts/verify-compatibility.mjs 0.2.1-rc.2 dist/dsh-workbuddy.tgz
-node scripts/verify-compatibility.mjs 0.2.2-alpha.2 dist/dsh-workbuddy.tgz
+WORKBUDDY_VERSION="$(node -p 'require("./package.json").version')"
+node scripts/verify-compatibility.mjs 0.2.1-rc.2 "dist/dsh-workbuddy-${WORKBUDDY_VERSION}.tgz"
+node scripts/verify-compatibility.mjs 0.2.2-alpha.2 "dist/dsh-workbuddy-${WORKBUDDY_VERSION}.tgz"
 ```
 
 脚本创建隔离目录，按固定锁文件安装目标 DSH 依赖，加载安装包中的构建产物，并使用合成登录与本地 ACP Agent 执行回归。临时目录路径写入执行输出，检查完成后由调用者按需保留证据或清理。
 
 ## 变更记录
 
-| 日期       | 类型 | 变化                         | 状态与记录                                                          |
-| ---------- | ---- | ---------------------------- | ------------------------------------------------------------------- |
-| 2026-11-05 | 修改 | 单一安装包覆盖两套已验证 DSH | [双版本兼容任务](task/task-dual-dsh-compatibility.md)，本地验收通过 |
+| 日期       | 类型 | 变化                         | 状态与记录                                                             |
+| ---------- | ---- | ---------------------------- | ---------------------------------------------------------------------- |
+| 2026-11-05 | 修改 | 单一安装包覆盖两套已验证 DSH | [双版本兼容任务](task/task-dual-dsh-compatibility.md)，已发布 `v0.2.1` |
