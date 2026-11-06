@@ -26,6 +26,9 @@ importers:
       "@deepseek-ai/dsh-agent-loop":
         specifier: 0.2.1-rc.2
         version: 0.2.1-rc.2(4571d5f1436cb7085197a1c25531a7bd)
+      "@deepseek-ai/dsh-atomic-write":
+        specifier: 0.2.1-rc.2
+        version: 0.2.1-rc.2(@deepseek-ai/cordis@4.0.5)
       "@deepseek-ai/dsh-client-connection":
         specifier: 0.2.1-rc.2
         version: 0.2.1-rc.2(@deepseek-ai/cordis@4.0.5)(@deepseek-ai/dsh-scope@0.2.1-rc.2(@deepseek-ai/cordis@4.0.5))
@@ -177,6 +180,14 @@ packages:
     resolution:
       {
         integrity: sha512-T2kcygikRS8rv8cKjgho2x381EgGprv5yQmvHl4/iYbuHE19OW+SLGtHWbV27PGdSHz5U8CJxasYzFosKW4e2A==,
+      }
+    peerDependencies:
+      "@deepseek-ai/cordis": ~4.0.5
+
+  "@deepseek-ai/dsh-atomic-write@0.2.1-rc.2":
+    resolution:
+      {
+        integrity: sha512-yCvLoL55Uoaxsi06I8hOcPgvMOhIt7w8vE/FLe3iGzvGq5OfrqkanAmt++apq069Jo6R/fP552XOhBlW8S3utg==,
       }
     peerDependencies:
       "@deepseek-ai/cordis": ~4.0.5
@@ -2419,6 +2430,10 @@ snapshots:
       "@deepseek-ai/dsh-brand": 0.2.1-rc.2(@deepseek-ai/cordis@4.0.5)
 
   "@deepseek-ai/dsh-brand@0.2.1-rc.2(@deepseek-ai/cordis@4.0.5)":
+    dependencies:
+      "@deepseek-ai/cordis": 4.0.5
+
+  "@deepseek-ai/dsh-atomic-write@0.2.1-rc.2(@deepseek-ai/cordis@4.0.5)":
     dependencies:
       "@deepseek-ai/cordis": 4.0.5
 

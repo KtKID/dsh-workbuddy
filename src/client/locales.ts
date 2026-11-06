@@ -1,5 +1,28 @@
 /** WorkBuddy 详情页的中英文文案；缺少其他语言时由宿主回退到英文。 */
+import { loginZh } from "./LoginControls.js";
 export const en = {
+  accounts: "WorkBuddy accounts",
+  accountUsage: "Credits, models, and chats use the account marked Active",
+  activeAccount: "Active",
+  localLogin: "Local account",
+  localAvailable: "Uses the WorkBuddy desktop sign-in or imported credentials",
+  localUnavailable: "Sign in to WorkBuddy on this device or import credentials",
+  useLocal: "Use local account",
+  webLogin: "Web sign-in",
+  webUnavailable: "Choose a region to sign in on the official WorkBuddy site",
+  webExpired: "Web sign-in expired. Sign in again.",
+  loginChina: "China",
+  loginGlobal: "International",
+  openChina: "Sign in to China",
+  openGlobal: "Sign in to International",
+  useWeb: "Use web account",
+  signOut: "Sign out of web account",
+  signedOut: "Signed out of the web account in this plugin",
+  signOutFailed: "Could not sign out of the web account. Try again.",
+  reopenLogin: "Reopen sign-in page",
+  waitingLogin: "Complete sign-in on the WorkBuddy page",
+  loginComplete: "WorkBuddy web sign-in complete",
+  loginFailed: "WorkBuddy sign-in could not complete. Try again.",
   summary: "Use models and credits from your WorkBuddy account",
   credits: "Available credits",
   loading: "Loading",
@@ -15,6 +38,7 @@ export const en = {
 };
 export type WorkBuddyLocaleKey = keyof typeof en;
 export const zh: Record<WorkBuddyLocaleKey, string> = {
+  ...loginZh,
   summary: "使用 WorkBuddy 当前账号的模型与积分",
   credits: "可用积分",
   loading: "正在读取",

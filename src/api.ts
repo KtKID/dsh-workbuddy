@@ -3,7 +3,11 @@ import { LlmError } from "@deepseek-ai/dsh-llm";
 import { z } from "zod";
 import { readDesktopCredentials } from "./credentials.js";
 import { readWorkBuddyClientHeaders } from "./client-info.js";
-import { type Credentials, type WorkBuddyConfig } from "./schema.js";
+import type {
+  WorkBuddyAccount,
+  Credentials,
+  WorkBuddyConfig,
+} from "./schema.js";
 import {
   ModelSchema,
   BalanceSchema,
@@ -43,11 +47,13 @@ const CatalogResponse = z.object({
 const CACHE_MS = 300_000;
 export interface ApiDependencies {
   credentials?: () => Promise<Credentials>;
+  account?: () => Promise<WorkBuddyAccount>;
   fetch?: typeof globalThis.fetch;
 }
 /** 一个插件实例持有一份按当前账号隔离的快照。 */
 export class WorkBuddyApi {
   private key = "";
+  private generation = 0;
   private expiresAt = 0;
   private pending: Promise<WorkBuddyStatus> | undefined;
   private value: WorkBuddyStatus = {
@@ -60,48 +66,69 @@ export class WorkBuddyApi {
     readonly config: WorkBuddyConfig,
     readonly dependencies: ApiDependencies = {},
   ) {}
-  /** 返回快照；force 手动刷新，失败保留同账号旧数据并标记错误。 */
-  async status(force = false): Promise<WorkBuddyStatus> {
+  /** 账号变化时使当前快照与在途查询失效。 */
+  invalidate(): void {
+    this.generation++;
+    this.reset("");
+  }
+
+  private reset(key: string): void {
+    this.key = key;
+    this.pending = undefined;
+    this.expiresAt = 0;
+    this.value = { models: [], balance: null, updatedAt: null, error: null };
+  }
+
+  /** 输入可选的同请求账号快照，返回积分及模型，失败保留同账号上次成功值。 */
+  async status(
+    force = false,
+    selection?: WorkBuddyAccount | null,
+  ): Promise<WorkBuddyStatus> {
+    const generation = this.generation;
     try {
-      const credentials = this.dependencies.credentials
-        ? await this.dependencies.credentials()
-        : await readDesktopCredentials(this.config);
-      if (credentials.expiresAt <= Date.now())
+      const account =
+        selection !== undefined
+          ? selection
+          : this.dependencies.account
+            ? await this.dependencies.account()
+            : {
+                source: "local" as const,
+                credentials: await (this.dependencies.credentials
+                  ? this.dependencies.credentials()
+                  : readDesktopCredentials(this.config)),
+              };
+      if (!account || account.credentials.expiresAt <= Date.now())
         throw new Error("WORKBUDDY_AUTH_EXPIRED");
+      const credentials = account.credentials;
+      if (generation !== this.generation && selection === undefined)
+        return this.status(force);
       const key = JSON.stringify([
+        account.source,
+        account.source === "web" ? account.region : "",
         credentials.userId,
         credentials.enterpriseId ?? "",
         credentials.domain ?? "",
       ]);
-      if (key !== this.key) {
-        this.key = key;
-        this.expiresAt = 0;
-        this.pending = undefined;
-        this.value = {
-          models: [],
-          balance: null,
-          updatedAt: null,
-          error: null,
-        };
-      }
+      if (key !== this.key) this.reset(key);
       if (this.pending) return this.pending;
       if (!force && Date.now() < this.expiresAt) return this.value;
-      const pending = this.refresh(credentials)
+      const pending: Promise<WorkBuddyStatus> = this.refresh(account)
         .then((value) => {
-          if (this.key === key) {
+          if (this.pending === pending) {
             this.value = value;
             this.expiresAt = Date.now() + CACHE_MS;
           }
           return value;
         })
         .catch(() => {
+          const current = this.pending === pending;
           const failed = {
-            ...(this.key === key
+            ...(current
               ? this.value
               : { models: [], balance: null, updatedAt: null }),
             error: "WORKBUDDY_ACCOUNT_QUERY_FAILED",
           };
-          if (this.key === key) {
+          if (current) {
             this.value = failed;
             this.expiresAt = Date.now() + 30_000;
           }
@@ -113,20 +140,19 @@ export class WorkBuddyApi {
       this.pending = pending;
       return pending;
     } catch {
-      this.key = "";
-      this.expiresAt = 0;
-      this.value = {
+      if (generation === this.generation) this.reset("");
+      return {
         models: [],
         balance: null,
         updatedAt: null,
         error: "WORKBUDDY_AUTH_UNAVAILABLE",
       };
-      return this.value;
     }
   }
+
   /** 返回可对话模型；无有效目录时传播固定错误。 */
-  async models() {
-    const state = await this.status();
+  async models(account?: WorkBuddyAccount) {
+    const state = await this.status(false, account);
     if (!state.models.length)
       throw new LlmError(
         state.error ?? "WORKBUDDY_MODELS_EMPTY",
@@ -143,7 +169,12 @@ export class WorkBuddyApi {
     }));
   }
   /** 两项独立只读查询；只向固定官方来源发送凭据，统一校验响应。 */
-  private async refresh(credentials: Credentials): Promise<WorkBuddyStatus> {
+  private async refresh(account: WorkBuddyAccount): Promise<WorkBuddyStatus> {
+    const { credentials } = account;
+    const origin =
+      account.source === "web" && account.region === "global"
+        ? "https://www.workbuddy.ai"
+        : "https://www.workbuddy.cn";
     const headers = {
       ...(await readWorkBuddyClientHeaders(this.config)),
       Accept: "application/json",
@@ -164,7 +195,7 @@ export class WorkBuddyApi {
       method: "GET" | "POST",
     ): Promise<unknown> => {
       const response = await (this.dependencies.fetch ?? globalThis.fetch)(
-        `https://www.workbuddy.cn${path}`,
+        `${origin}${path}`,
         {
           method,
           headers,

@@ -93,7 +93,8 @@ export async function serve({
     .onRequest(
       methods.agent.session.prompt,
       async ({ params, client, signal }) => {
-        await record({ method: "prompt", params });
+        const permissionMode = args[args.indexOf("--permission-mode") + 1];
+        await record({ method: "prompt", params, permissionMode });
         if (expectedPrompt)
           assert.ok(
             params.prompt.some(

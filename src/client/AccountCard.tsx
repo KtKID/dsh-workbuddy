@@ -1,5 +1,5 @@
 /** 展示当前余额、积分分类和可用模型；手动刷新保留旧结果及错误提示。 */
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@deepseek-ai/dsh-client-ui-primitives";
 import type {
   PropsLocale,
@@ -7,6 +7,7 @@ import type {
 } from "@deepseek-ai/dsh-client-ui-slots";
 import type {} from "@deepseek-ai/dsh-client-ui-plugin-manager/client";
 import { StatusSchema, type WorkBuddyStatus } from "../public-schema.js";
+import { LoginControls } from "./LoginControls.js";
 export function AccountCard(
   props: PropsRuntime<"plugins.bundle.config"> & PropsLocale<"workbuddy">,
 ) {
@@ -20,27 +21,31 @@ function AccountPage({ t }: PropsLocale<"workbuddy">) {
   const [state, setState] = useState<WorkBuddyStatus>();
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
-  async function refresh(force = false, signal?: AbortSignal) {
+  const request = useRef<AbortController | null>(null);
+  async function refresh(force = false) {
+    request.current?.abort();
+    const controller = new AbortController();
+    request.current = controller;
+    const { signal } = controller;
     setBusy(true);
     setFailed(false);
     try {
       const response = await fetch("/api/workbuddy/status", {
         method: force ? "POST" : "GET",
-        ...(signal ? { signal } : {}),
+        signal,
       });
       if (!response.ok) throw new Error("query failed");
       const value = StatusSchema.parse(await response.json());
-      if (!signal?.aborted) setState(value);
+      if (!signal.aborted) setState(value);
     } catch {
-      if (!signal?.aborted) setFailed(true);
+      if (!signal.aborted) setFailed(true);
     } finally {
-      if (!signal?.aborted) setBusy(false);
+      if (!signal.aborted) setBusy(false);
     }
   }
   useEffect(() => {
-    const controller = new AbortController();
-    refresh(false, controller.signal).catch(() => undefined);
-    return () => controller.abort();
+    refresh().catch(() => undefined);
+    return () => request.current?.abort();
   }, []);
   return (
     <div
@@ -50,6 +55,7 @@ function AccountPage({ t }: PropsLocale<"workbuddy">) {
         fontSize: 13,
       }}
     >
+      <LoginControls login={state?.login} refresh={refresh} label={t} />
       <div>
         <span>{t("credits")}</span>
         <p style={{ fontSize: 24, fontWeight: 500, margin: "8px 0" }}>

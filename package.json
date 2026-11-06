@@ -1,7 +1,7 @@
 {
   "name": "dsh-workbuddy",
   "type": "module",
-  "description": "在 DeepSeek Harness 中使用 WorkBuddy 桌面账号的模型、积分查询和工具调用",
+  "description": "在 DeepSeek Harness 中使用 WorkBuddy 账号的模型、积分查询和工具调用",
   "bin": {
     "dsh-workbuddy-export": "scripts/export-runtime.mjs"
   },
@@ -31,6 +31,7 @@
     "@deepseek-ai/cordis": "4.0.6-alpha.1",
     "@deepseek-ai/dsh-agent": "0.2.2-alpha.2",
     "@deepseek-ai/dsh-agent-loop": "0.2.2-alpha.2",
+    "@deepseek-ai/dsh-atomic-write": "0.2.2-alpha.2",
     "@deepseek-ai/dsh-client-connection": "0.2.2-alpha.2",
     "@deepseek-ai/dsh-client-locale": "0.2.2-alpha.2",
     "@deepseek-ai/dsh-client-ui-plugin-manager": "0.2.2-alpha.2",
@@ -102,10 +103,11 @@
     "README.md",
     "LICENSE"
   ],
-  "version": "0.2.2",
+  "version": "0.2.3",
   "peerDependencies": {
     "@deepseek-ai/cordis": "~4.0.5 || 4.0.5-alpha.1 || ~4.0.6-alpha.1",
     "@deepseek-ai/dsh-agent": "0.2.1-rc.2 || 0.2.2-alpha.2",
+    "@deepseek-ai/dsh-atomic-write": "0.2.1-rc.2 || 0.2.2-alpha.2",
     "@deepseek-ai/dsh-client-connection": "0.2.1-rc.2 || 0.2.2-alpha.2",
     "@deepseek-ai/dsh-client-locale": "0.2.1-rc.2 || 0.2.2-alpha.2",
     "@deepseek-ai/dsh-client-ui-plugin-manager": "0.2.1-rc.2 || 0.2.2-alpha.2",

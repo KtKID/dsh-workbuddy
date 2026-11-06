@@ -38,7 +38,7 @@ async function runtimeFixture(t, mode, settings = {}) {
   });
   const runtime = await sessionRuntime(
     join(root, "sessions"),
-    config,
+    { ...config, traceDir: join(root, "workbuddy-transport") },
     "none",
     root,
   );
@@ -98,6 +98,44 @@ test("ACP 拒绝审批后 WB 取消整轮，KMH 保存正式取消状态", async
   await assert.rejects(access(join(runtime.root, "executed")), {
     code: "ENOENT",
   });
+});
+
+test("ACP 从当前宿主会话透传有效权限组合", async (t) => {
+  const runtime = await runtimeFixture(t, "text");
+  await runtime.ctx.plugin(Approval, { policy: "ask" });
+  const sandboxModes = new Map([
+    ["full-access", "danger-full-access"],
+    ["full-access-ask", "danger-full-access"],
+    ["workspace-never", "workspace-write"],
+  ]);
+  runtime.ctx.provide("sandboxPolicy", {
+    resolve: ({ session }) => ({ mode: sandboxModes.get(session.id) }),
+  });
+  runtime.ctx.on("agent/created", ({ agent: { session } }) => {
+    if (session.id !== "full-access-ask")
+      session.append("approval/policy", { policy: "never" });
+  });
+  for (const id of sandboxModes.keys()) {
+    const agent = await runtime.send(id, id, "fixture");
+    const end = agent.session
+      .snapshotEvents()
+      .findLast((event) => event.type === "turn/end");
+    assert.equal(
+      end.data.reason.kind,
+      "completed",
+      JSON.stringify(end.data.reason),
+    );
+  }
+  const rows = (await readFile(join(runtime.root, "requests.jsonl"), "utf8"))
+    .trim()
+    .split("\n")
+    .map(JSON.parse);
+  assert.deepEqual(
+    rows
+      .filter((row) => row.method === "prompt")
+      .map((row) => row.permissionMode),
+    ["bypassPermissions", "default", "default"],
+  );
 });
 
 for (const mode of ["allow", "deny", "never", "unavailable", "throwing"])

@@ -18,7 +18,7 @@ import {
   type StreamChunk,
 } from "@deepseek-ai/dsh-llm";
 import type { Credentials, WorkBuddyConfig } from "./schema.js";
-import type { WorkBuddyTrace } from "./public-schema.js";
+import type { LoginRegion, WorkBuddyTrace } from "./public-schema.js";
 import { AcpOutput } from "./acp-output.js";
 import { resolveWorkBuddyCli } from "./runtime.js";
 import { createKmhBridge, type KmhTransfer } from "./mcp-bridge.js";
@@ -30,6 +30,8 @@ const Binding = z.object({
     historyDigest: z.string(),
   }),
 });
+
+export type WorkBuddyPermissionMode = "default" | "bypassPermissions";
 
 /** 输入 KMH 完整历史，输出有序流；SDK 管理协议与请求关联，本函数拥有子进程和临时工具桥。 */
 export async function* nativeCompletion(
@@ -43,6 +45,8 @@ export async function* nativeCompletion(
   ) => Promise<boolean>,
   cwd = process.cwd(),
   onRejectedTurn?: () => void,
+  webRegion?: LoginRegion,
+  permissionMode: WorkBuddyPermissionMode = "default",
 ): AsyncIterable<StreamChunk> {
   options.signal?.throwIfAborted();
   const requestId = randomUUID();
@@ -108,6 +112,9 @@ export async function* nativeCompletion(
             credentials.enterpriseId ?? "",
             credentials.domain ?? "",
           ],
+          ...(webRegion ? { webRegion } : {}),
+          // 权限切换时用 KMH 历史重建，普通审批的既有绑定保持可用。
+          ...(permissionMode === "default" ? {} : { permissionMode }),
           transport: "acp-v1",
           historyVersion: 2,
           cwd,
@@ -162,7 +169,7 @@ export async function* nativeCompletion(
     "--tools",
     "default",
     "--permission-mode",
-    "default",
+    permissionMode,
     "--max-turns",
     "99",
     "--model",
@@ -187,6 +194,20 @@ export async function* nativeCompletion(
       delete env[key];
   env.CODEBUDDY_AUTH_TOKEN = credentials.accessToken;
   env.ACC_USER_ID = credentials.userId;
+  if (webRegion) {
+    const endpoint =
+      webRegion === "global"
+        ? "https://www.workbuddy.ai"
+        : "https://www.workbuddy.cn";
+    env.CODEBUDDY_INTERNET_ENVIRONMENT =
+      webRegion === "global" ? "public" : "internal";
+    env.ACC_PRODUCT_CONFIG_V3 = JSON.stringify({
+      endpoint,
+      ...(credentials.enterpriseId
+        ? { enterpriseId: credentials.enterpriseId }
+        : {}),
+    });
+  }
   const output = new AcpOutput();
   const chunks: StreamChunk[] = [];
   let wake: () => void = () => {};
@@ -369,6 +390,7 @@ export async function* nativeCompletion(
         transport: "acp-v1",
         nativeSessionId,
         resumed,
+        permissionMode,
         system: options.system ?? "",
         messages: projected.messages,
         tools: projected.tools ?? [],

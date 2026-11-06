@@ -3,8 +3,15 @@ import { homedir } from "node:os";
 import { isAbsolute, join, resolve } from "node:path";
 import schema from "@deepseek-ai/schemastery";
 import { z } from "zod";
+import type { LoginRegion } from "./public-schema.js";
 
 export const ENDPOINT = "https://www.workbuddy.cn/v2/chat/completions";
+export function workBuddyDataDir(): string {
+  return resolve(
+    process.env.DSH_HOME?.trim() || join(homedir(), ".dsh"),
+    "workbuddy",
+  );
+}
 export const ConfigSchema = z.strictObject({
   transport: z.enum(["cli", "direct"]).default("cli"),
   model: z.string().min(1).default("deepseek-v4-flash"),
@@ -15,13 +22,7 @@ export const ConfigSchema = z.strictObject({
   traceDir: z
     .string()
     .min(1)
-    .default(() =>
-      resolve(
-        process.env.DSH_HOME?.trim() || join(homedir(), ".dsh"),
-        "workbuddy",
-        "transport",
-      ),
-    ),
+    .default(() => join(workBuddyDataDir(), "transport")),
   electronPath: z
     .string()
     .min(1)
@@ -50,6 +51,9 @@ export const CredentialsSchema = z.object({
   enterpriseId: z.string().optional(),
 });
 export type Credentials = z.infer<typeof CredentialsSchema>;
+export type WorkBuddyAccount =
+  | { source: "local"; credentials: Credentials }
+  | { source: "web"; region: LoginRegion; credentials: Credentials };
 
 export const EncryptedFieldSchema = z.strictObject({
   $wbEncrypted: z.literal(1),

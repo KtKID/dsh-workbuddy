@@ -26,7 +26,9 @@ WorkBuddy 原生 `Read`、`Bash`、`Write` 等工具由 WB 执行，保持 `--to
 
 MCP 调用收到 `KMH_TOOL_TRANSFERRED` 回执后结束当前响应，由 DSH 审批、执行，再把真实结果交给下一步。MCP SDK 回调是宿主工具转交的唯一来源；ACP 原生工具通知保存到元数据。
 
-原生审批通过 ACP `session/request_permission` 到达宿主公开审批服务，展示工具名、参数、路径和扩展信息。批准一次或拒绝时，按本次请求的选项种类选择并回传原始 optionId；仅提供永久批准的请求保持取消。审批服务缺失、策略为 `never` 或异常时按拒绝处理。官方撤回、会话取消和进程退出使待决审批与迟到批准失效。WB 在审批拒绝后返回取消整轮时，插件通过公开 Agent 取消接口保存已停止状态并保留后续排队消息。
+每次启动 WorkBuddy CLI 时，插件读取当前 DSH 会话的有效沙箱和审批策略。`danger-full-access` 与 `never` 同时生效时使用 WorkBuddy 的 `bypassPermissions`，其余组合使用 `default`。权限切换从下一次 CLI 请求起生效。CLI 模式变化时，插件从 DSH 历史重建原生会话。
+
+WorkBuddy 仍要求审批的操作通过 ACP `session/request_permission` 进入宿主审批界面，展示工具名、参数、路径和扩展信息。批准一次或拒绝时，按本次请求的选项种类选择并回传原始 optionId。仅提供永久批准的请求保持取消。审批服务缺失、策略为 `never` 或异常时按拒绝处理。官方撤回、会话取消和进程退出使待决审批与迟到批准失效。WB 在审批拒绝后返回取消整轮时，插件保存已停止状态并保留后续排队消息。
 
 CLI 使用 `--max-turns 99`；每次 prompt 持续等待 ACP 的正式响应，支持长时间静默与超过 16 MB 的输出。用户取消时发送 ACP 取消通知，回收本次子进程组并关闭工具桥。凭据读取保留独立的 10 秒时限。
 
@@ -40,7 +42,7 @@ CLI 使用 `--max-turns 99`；每次 prompt 持续等待 ACP 的正式响应，�
 
 首次关联、切换账号和重新登录的步骤见 [关联 WorkBuddy 账号](../README.md#关联-workbuddy-账号)。
 
-凭据读取适配 WorkBuddy 的桌面保护格式，使用应用自带 Electron 只读解密登录文件，凭据读取保留独立的 10 秒时限。模型认证通过子进程环境传递给官方 CLI；账号查询仅向固定的 `https://www.workbuddy.cn` 来源发送认证信息。
+凭据读取适配 WorkBuddy 的桌面保护格式，使用应用自带 Electron 只读解密登录文件，凭据读取保留独立的 10 秒时限。模型认证通过子进程环境传递给官方 CLI。插件在数据目录的 `workbuddy/web-login.json` 私有保存网页登录凭据及当前方式。账号查询按选用方式访问固定的地区服务。网页登录使用 `cli` 传输。
 
 DSH 的 Session 保存会话和原生请求关联。插件的 `traceDir` 按会话 ID 的 SHA-256 文件名保存 JSONL；新建目录权限 `0700`、新建文件权限 `0600`，当前 token 和账号 UID 在写入前替换。诊断包含对话、工具声明和模型输出，适用本机私有数据的管理方式；保留期限和清理由部署者负责。官方 CLI 的自身运行记录由 WorkBuddy 管理。
 
@@ -48,7 +50,7 @@ DSH 的 Session 保存会话和原生请求关联。插件的 `traceDir` 按会�
 
 | 错误                                | 处理                                                       |
 | ----------------------------------- | ---------------------------------------------------------- |
-| `WORKBUDDY_AUTH_UNAVAILABLE`        | 在本机 WorkBuddy 桌面版确认登录有效，再重试原操作          |
+| `WORKBUDDY_AUTH_UNAVAILABLE`        | 在插件详情页确认当前方式并恢复对应的 WorkBuddy 登录        |
 | `WORKBUDDY_ACCOUNT_QUERY_FAILED`    | 检查官方服务连通性；详情页的更新时间和错误提示说明快照状态 |
 | `WORKBUDDY_CLIENT_INFO_UNAVAILABLE` | 核对 WorkBuddy 安装完整性及 `electronPath`                 |
 | `WORKBUDDY_CHANNEL_REJECTED`        | 结束本次调用，核对 WorkBuddy 版本及传输配置，保留错误记录  |

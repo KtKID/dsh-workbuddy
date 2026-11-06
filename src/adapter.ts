@@ -1,5 +1,5 @@
 /** 将 KMH 的单轮文本模型调用接到 WorkBuddy 远程推理。 */
-import { nativeCompletion } from "./native.js";
+import { nativeCompletion, type WorkBuddyPermissionMode } from "./native.js";
 import { randomUUID } from "node:crypto";
 import {
   LlmAdapter,
@@ -15,14 +15,20 @@ import type { WorkBuddyTrace } from "./public-schema.js";
 import { readWorkBuddyClientHeaders } from "./client-info.js";
 import { readDesktopCredentials } from "./credentials.js";
 import { parseResponse } from "./protocol.js";
-import { ENDPOINT, type Credentials, type WorkBuddyConfig } from "./schema.js";
+import {
+  ENDPOINT,
+  type Credentials,
+  type WorkBuddyAccount,
+  type WorkBuddyConfig,
+} from "./schema.js";
 import type { RequestPermissionRequest } from "@agentclientprotocol/sdk";
 
 export interface TransportDependencies {
   credentials?: () => Promise<Credentials>;
+  account?: () => Promise<WorkBuddyAccount>;
   fetch?: typeof globalThis.fetch;
   onCredit?: (credit: number) => void;
-  models?: () => Promise<readonly LlmModelInfo[]>;
+  models?: (account?: WorkBuddyAccount) => Promise<readonly LlmModelInfo[]>;
   onTrace?: (sessionId: string | undefined, trace: WorkBuddyTrace) => void;
   onPermission?: (
     options: GenerateOptions,
@@ -30,6 +36,7 @@ export interface TransportDependencies {
     signal: AbortSignal,
   ) => Promise<boolean>;
   cwd?: (options: GenerateOptions) => string | undefined;
+  permissionMode?: (options: GenerateOptions) => WorkBuddyPermissionMode;
   onRejectedTurn?: (options: GenerateOptions) => void;
 }
 
@@ -60,11 +67,20 @@ export class WorkBuddyAdapter extends LlmAdapter {
     provider: string,
     model: string,
   ): Promise<LlmResolvedModelInfo> {
+    return this.resolveSelectedModel(provider, model);
+  }
+
+  private async resolveSelectedModel(
+    provider: string,
+    model: string,
+    account?: WorkBuddyAccount,
+  ): Promise<LlmResolvedModelInfo> {
     if (provider !== "workbuddy")
       throw new LlmError("WORKBUDDY_INVALID_MODEL", "WORKBUDDY_INVALID_MODEL");
-    const entry = (await this.listModels(provider)).find(
-      (entry) => entry.id === model,
-    );
+    const models = this.dependencies.models
+      ? await this.dependencies.models(account)
+      : await this.listModels(provider);
+    const entry = models.find((entry) => entry.id === model);
     if (!entry)
       throw new LlmError("WORKBUDDY_INVALID_MODEL", "WORKBUDDY_INVALID_MODEL");
     return { ...entry, defaultMaxTokens: this.config.maxTokens };
@@ -73,11 +89,22 @@ export class WorkBuddyAdapter extends LlmAdapter {
   /** 输入完整文本请求，返回模型流；协议或范围错误向 LLM 服务传播。 */
   override async *stream(options: GenerateOptions): AsyncIterable<StreamChunk> {
     options.signal?.throwIfAborted();
-    await this.resolveModel(options.provider, options.model);
-    if (this.config.transport === "cli") {
-      const credentials = await (this.dependencies.credentials
+    const account = await this.dependencies.account?.();
+    if (account?.source === "web" && this.config.transport !== "cli") {
+      throw new LlmError(
+        "WORKBUDDY_WEB_REQUIRES_CLI",
+        "WORKBUDDY_WEB_REQUIRES_CLI",
+      );
+    }
+    await this.resolveSelectedModel(options.provider, options.model, account);
+    const readCredentials = () => {
+      if (account) return account.credentials;
+      return this.dependencies.credentials
         ? this.dependencies.credentials()
-        : readDesktopCredentials(this.config));
+        : readDesktopCredentials(this.config);
+    };
+    if (this.config.transport === "cli") {
+      const credentials = await readCredentials();
       const onPermission = this.dependencies.onPermission;
       yield* nativeCompletion(
         options,
@@ -93,6 +120,8 @@ export class WorkBuddyAdapter extends LlmAdapter {
           : undefined,
         this.dependencies.cwd?.(options),
         () => this.dependencies.onRejectedTurn?.(options),
+        account?.source === "web" ? account.region : undefined,
+        this.dependencies.permissionMode?.(options),
       );
       return;
     }
@@ -137,9 +166,7 @@ export class WorkBuddyAdapter extends LlmAdapter {
     if (options.system)
       messages.unshift({ role: "system", content: options.system });
     const clientHeaders = await readWorkBuddyClientHeaders(this.config);
-    const credentials = await (this.dependencies.credentials
-      ? this.dependencies.credentials()
-      : readDesktopCredentials(this.config));
+    const credentials = await readCredentials();
     if (credentials.expiresAt <= Date.now())
       throw new LlmError("WORKBUDDY_AUTH_EXPIRED", "WORKBUDDY_AUTH_EXPIRED");
     const signal = options.signal

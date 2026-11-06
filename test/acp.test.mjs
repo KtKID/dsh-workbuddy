@@ -131,11 +131,26 @@ for (const mode of ["mcp", "mcp-duplicate", "mcp-invalid"])
     );
   });
 
-for (const settings of [{}, { loadSession: false }, { loadFails: true }])
+for (const settings of [
+  {},
+  { loadSession: false },
+  { loadFails: true },
+  { lowerPermissions: true },
+])
   test(`官方 ACP：续聊与历史恢复 ${JSON.stringify(settings)}`, async (t) => {
     const { config, root } = await fixture(t, settings);
     const first = await collect(
-      nativeCompletion(request, config, credentials, () => {}, undefined, root),
+      nativeCompletion(
+        request,
+        config,
+        credentials,
+        () => {},
+        undefined,
+        root,
+        undefined,
+        undefined,
+        settings.lowerPermissions ? "bypassPermissions" : "default",
+      ),
     );
     const content = first
       .filter((c) => c.type === "block-end")
@@ -172,13 +187,21 @@ for (const settings of [{}, { loadSession: false }, { loadFails: true }])
       .trim()
       .split("\n")
       .map(JSON.parse);
+    const prompts = rows.filter((row) => row.method === "prompt");
     assert.equal(
       rows.filter((r) => r.method === "load").length,
-      settings.loadSession === false ? 0 : 1,
+      settings.loadSession === false || settings.lowerPermissions ? 0 : 1,
     );
-    const prompt = rows.findLast((r) => r.method === "prompt").params.prompt[0]
-      .text;
-    if (settings.loadSession === false || settings.loadFails)
+    assert.deepEqual(
+      prompts.map((row) => row.permissionMode),
+      [settings.lowerPermissions ? "bypassPermissions" : "default", "default"],
+    );
+    const prompt = prompts.at(-1).params.prompt[0].text;
+    if (
+      settings.loadSession === false ||
+      settings.loadFails ||
+      settings.lowerPermissions
+    )
       assert.match(prompt, /fixture task/);
     else assert.equal(prompt, "next question");
   });
