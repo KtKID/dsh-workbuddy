@@ -36,19 +36,19 @@
 ### DSH 界面安装
 
 1. 打开 DSH 的「插件」→「添加插件」。
-2. 填入下面的预构建安装包地址，完成安装并选择「立即启用」。
+2. 填入下面的 GitHub 仓库地址，完成安装并选择「立即启用」。
 3. 按下面的「关联 WorkBuddy 账号」确认登录，再选择模型。
 
 ```text
-https://github.com/KtKID/dsh-workbuddy/releases/latest/download/dsh-workbuddy.tgz
+https://github.com/KtKID/dsh-workbuddy
 ```
 
-该地址始终指向最新正式 Release 的安装包。安装包包含已构建的 `lib/`、界面模块和组合包配置，安装时可直接加载。包内的 DSH 依赖由当前宿主提供，`zod` 由包管理器安装。
+默认分支包含预编译的 `lib/` 和组合包配置。安装时无需本地编译或授权 WorkBuddy 构建脚本。需要正式发行版时，使用 [Release 安装包](https://github.com/KtKID/dsh-workbuddy/releases/latest/download/dsh-workbuddy.tgz)。
 
 ### 命令行安装到 Web profile
 
 ```sh
-dsh plugin --profile web add https://github.com/KtKID/dsh-workbuddy/releases/latest/download/dsh-workbuddy.tgz
+dsh plugin --profile web add https://github.com/KtKID/dsh-workbuddy
 dsh --profile web --dump-config
 dsh web
 ```
@@ -73,7 +73,7 @@ pnpm test
 pnpm pack --pack-destination dist
 ```
 
-构建依赖均从公开 npm 源获取。开发安装使用构建后的本地绝对目录，`dsh plugin --profile web add /absolute/path/dsh-workbuddy`。GitHub 仓库保存 TypeScript 源码，普通安装使用上面的 Release `.tgz`。
+构建依赖均从公开 npm 源获取。开发安装使用构建后的本地绝对目录，`dsh plugin --profile web add /absolute/path/dsh-workbuddy`。源码更新时同步构建并提交 `lib/`，CI 会核对产物。
 
 ## 关联 WorkBuddy 账号
 

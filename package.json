@@ -24,8 +24,7 @@
     "lint": "eslint src --max-warnings 0",
     "format:check": "prettier src test scripts build.mjs tsconfig.json package.json eslint.config.mjs cordis.patch.yml locale README.md docs .github --check",
     "test": "node --test test/*.test.mjs",
-    "check": "pnpm typecheck && pnpm lint && pnpm format:check",
-    "prepack": "pnpm build"
+    "check": "pnpm typecheck && pnpm lint && pnpm format:check"
   },
   "devDependencies": {
     "@deepseek-ai/cordis": "4.0.6-alpha.1",

@@ -32,7 +32,16 @@ jobs:
           node-version: 25
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm build
+      - name: Rebuild and verify committed lib
+        run: |
+          rm -rf lib
+          pnpm build
+          git diff --exit-code -- lib
+          untracked=$(git ls-files --others --exclude-standard -- lib)
+          if [ -n "$untracked" ]; then
+            printf '请提交以下构建文件：\n%s\n' "$untracked"
+            exit 1
+          fi
       - run: pnpm check
       - run: pnpm test
       - run: pnpm pack --pack-destination dist

@@ -22,15 +22,15 @@ pnpm test
 pnpm pack --pack-destination dist
 ```
 
-`prepack` 从源码生成当前构建产物。检查 `.tgz` 中包含导出目标、patch、locale 和图标，并通过隔离 profile 执行实际安装与 `--dump-config`。安装后的 Host 导入和 Client factory 注册均需成功。
+`pnpm build` 生成当前构建产物。检查 `.tgz` 中包含导出目标、patch、locale 和图标，并通过隔离 profile 执行实际安装与 `--dump-config`。安装后的 Host 导入和 Client factory 注册均需成功。
 
 在公开上传前，核对源码和包内文件中的凭据、本机运行数据、绝对个人路径及工作区依赖。发布本仓库的源码和 `.tgz`，运行日志由本机保存。
 
 ## 发布版本
 
-更新包版本，提交通过验证的内容，推送对应的 `v<version>` 标签。README 的安装地址固定为 `https://github.com/KtKID/dsh-workbuddy/releases/latest/download/dsh-workbuddy.tgz`，GitHub 将其转到最新正式 Release 的同名资源。
+更新包版本，提交通过验证的内容和 `lib/`，推送对应的 `v<version>` 标签。最新正式发行包通过 [Release 地址](https://github.com/KtKID/dsh-workbuddy/releases/latest/download/dsh-workbuddy.tgz) 下载。
 
-GitHub Actions 的 `Check and Release` 工作流在每次 push 和 pull request 时执行构建、类型、格式、测试与打包，并保存 `.tgz` 和 `SHA256SUMS`。推送 `v<version>` 标签时，先核对标签与包版本一致，再执行这些检查；检查成功后自动创建同名 GitHub Release，附上预构建安装包、校验值和提交记录。发布权限限定在 Release job。
+GitHub Actions 的 `Check and Release` 工作流在每次 push 和 pull request 时从空的 `lib/` 重新构建并核对提交产物，再执行类型、格式、测试与打包，并保存 `.tgz` 和 `SHA256SUMS`。推送 `v<version>` 标签时，先核对标签与包版本一致，再执行这些检查；检查成功后自动创建同名 GitHub Release，附上预构建安装包、校验值和提交记录。发布权限限定在 Release job。
 
 `compatibility` 矩阵下载同一个构建产物，在两套 DSH 依赖下分别执行类型与安装包回归；Release job 等待两项兼容检查全部成功。目标锁文件更新后，先执行 [兼容检查命令](compatibility.md)，再提交包清单和对应锁文件。
 
@@ -38,4 +38,6 @@ GitHub Actions 的 `Check and Release` 工作流在每次 push 和 pull request 
 
 在 [Actions](https://github.com/KtKID/dsh-workbuddy/actions) 核对标签运行结果，在 [Releases](https://github.com/KtKID/dsh-workbuddy/releases) 核对安装包及校验值。版本、构建或测试检查失败时，修复对应诊断后重新执行；发布失败时，先核对该标签的 Release 状态，再重试发布 job。真实 DSH、WorkBuddy 和 Node 的验证版本与覆盖范围集中在 [验证记录](verification.md)。
 
-GitHub 的源码归档供开发使用；用户安装入口是 Release 的预构建 `.tgz`。这种分发方式符合 DSH 官方的 tarball 安装流程。后续选择从 Git 直接安装时，需要自包含 `prepare` 构建，并按 DSH 文档处理 pnpm 的构建脚本授权及 commit 固定。
+## Git 仓库直装
+
+默认分支提交预构建的 `lib/`。用户可以直接在 DSH 插件页填入仓库地址，无需授权 WorkBuddy 的构建脚本。修改源码后，在同一次提交中加入重新构建的 `lib/`，包括新增和删除的文件。CI 在干净的产物目录中重建，产物差异会使检查失败。正式发行包继续使用同一套产物。
