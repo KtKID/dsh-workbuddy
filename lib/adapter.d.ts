@@ -1,6 +1,7 @@
 /** 将 KMH 的单轮文本模型调用接到 WorkBuddy 远程推理。 */
 import { type WorkBuddyPermissionMode } from "./native.js";
-import { LlmAdapter, type GenerateOptions, type StreamChunk, type LlmModelInfo, type LlmResolvedModelInfo } from "@deepseek-ai/dsh-llm";
+import { LlmAdapter, type GenerateOptions, type StreamChunk, type LlmResolvedModelInfo } from "@deepseek-ai/dsh-llm";
+import type { WorkBuddyModelInfo } from "./api.js";
 import type { WorkBuddyTrace } from "./public-schema.js";
 import { type Credentials, type WorkBuddyAccount, type WorkBuddyConfig } from "./schema.js";
 import type { RequestPermissionRequest } from "@agentclientprotocol/sdk";
@@ -9,7 +10,7 @@ export interface TransportDependencies {
     account?: () => Promise<WorkBuddyAccount>;
     fetch?: typeof globalThis.fetch;
     onCredit?: (credit: number) => void;
-    models?: (account?: WorkBuddyAccount) => Promise<readonly LlmModelInfo[]>;
+    models?: (account?: WorkBuddyAccount) => Promise<readonly WorkBuddyModelInfo[]>;
     onTrace?: (sessionId: string | undefined, trace: WorkBuddyTrace) => void;
     onPermission?: (options: GenerateOptions, request: RequestPermissionRequest, signal: AbortSignal) => Promise<boolean>;
     cwd?: (options: GenerateOptions) => string | undefined;
@@ -22,7 +23,7 @@ export declare class WorkBuddyAdapter extends LlmAdapter {
     readonly dependencies: TransportDependencies;
     constructor(config: WorkBuddyConfig, dependencies?: TransportDependencies);
     /** 读取远端对话模型目录；独立夹具可使用配置中的单模型。 */
-    listModels(provider: string): Promise<readonly LlmModelInfo[]>;
+    listModels(provider: string): Promise<readonly WorkBuddyModelInfo[]>;
     /** 校验当前 provider/model，返回文本模型能力；路由失配抛出 LlmError。 */
     resolveModel(provider: string, model: string): Promise<LlmResolvedModelInfo>;
     private resolveSelectedModel;

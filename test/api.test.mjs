@@ -4,10 +4,13 @@ import test from "node:test";
 import { mkdtemp, mkdir, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { Context } from "@deepseek-ai/cordis";
+import LlmRuntime from "@deepseek-ai/dsh-llm";
+import { WorkBuddyAdapter } from "../lib/adapter.js";
 import { WorkBuddyApi } from "../lib/api.js";
 import { ConfigSchema } from "../lib/schema.js";
 
-async function fixture(t) {
+async function fixture(t, extraModels = []) {
   const root = await mkdtemp(join(tmpdir(), "wb-api-"));
   t.after(() => rm(root, { recursive: true, force: true }));
   const cli = join(root, "Contents/Resources/app.asar.unpacked/cli");
@@ -62,6 +65,10 @@ async function fixture(t) {
                       supportsToolCall: true,
                     },
                     { id: "image", name: "Image", tags: ["text-to-image"] },
+                    ...extraModels.map((model) => ({
+                      ...model,
+                      supportsToolCall: true,
+                    })),
                   ],
                   agents: [{ name: "cli", models: ["a", "b"] }],
                 },
@@ -128,4 +135,94 @@ test("失败保留同账号旧快照；换账号失败清空旧余额且脱敏",
   assert.equal(next.balance, null);
   assert.deepEqual(next.models, []);
   assert.doesNotMatch(JSON.stringify(next), /synthetic-secret/);
+});
+
+test("宿主按 WorkBuddy 模型读取默认上下文档位和各自的输出上限", async (t) => {
+  const windows = [1_000_000, 300_000, 600_000];
+  const { api } = await fixture(t, [
+    {
+      id: "kimi",
+      name: "Kimi",
+      maxInputTokens: 1_000_000,
+      maxOutputTokens: 32_000,
+      contextWindow: { defaultLength: 300_000, supportedLengths: windows },
+    },
+    {
+      id: "glm",
+      name: "GLM",
+      maxInputTokens: 1_000_000,
+      maxOutputTokens: 131_072,
+      contextWindow: { defaultLength: 300_000, supportedLengths: windows },
+    },
+    {
+      id: "large",
+      name: "Large",
+      maxInputTokens: 1_000_000,
+      maxOutputTokens: 32_000,
+      contextWindow: { defaultLength: 1_000_000, supportedLengths: windows },
+    },
+    {
+      id: "fallback-tier",
+      name: "Fallback tier",
+      maxInputTokens: 500_000,
+      contextWindow: {
+        defaultLength: 600_000,
+        supportedLengths: [600_000, 400_000, -1, 200_000, "invalid", 200_000],
+      },
+    },
+    {
+      id: "fixed",
+      name: "Fixed",
+      maxInputTokens: 128_000,
+      maxOutputTokens: 8_000,
+      contextWindow: { defaultLength: 64_000, supportedLengths: [64_000] },
+    },
+    {
+      id: "input-only",
+      name: "Input only",
+      maxInputTokens: 256_000,
+    },
+    {
+      id: "invalid",
+      name: "Invalid limits",
+      maxInputTokens: 0,
+      maxOutputTokens: 1.5,
+      contextWindow: { defaultLength: 32_000, supportedLengths: "invalid" },
+    },
+  ]);
+  const ctx = new Context();
+  t.after(() => ctx.fiber.dispose());
+  await ctx.plugin(LlmRuntime);
+  const dependencies = { models: (account) => api.models(account) };
+  ctx.llm.registerAdapter(
+    ["workbuddy"],
+    new WorkBuddyAdapter(api.config, dependencies),
+  );
+
+  for (const [model, contextWindow, defaultMaxTokens] of [
+    ["kimi", 300_000, 32_000],
+    ["glm", 300_000, 131_072],
+    ["large", 1_000_000, 32_000],
+    ["fallback-tier", 200_000, 512],
+    ["fixed", 128_000, 8_000],
+    ["input-only", 256_000, 512],
+    ["invalid", undefined, 512],
+    ["a", undefined, 512],
+  ]) {
+    const info = await ctx.llm.resolveModelInfo("workbuddy", model);
+    assert.deepEqual(
+      [info.context?.contextWindow, info.defaultMaxTokens],
+      [contextWindow, defaultMaxTokens],
+      model,
+    );
+  }
+
+  const direct = new WorkBuddyAdapter(
+    { ...api.config, transport: "direct", maxTokens: 768 },
+    dependencies,
+  );
+  assert.equal(
+    (await direct.resolveModel("workbuddy", "glm")).defaultMaxTokens,
+    768,
+  );
 });

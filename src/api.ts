@@ -1,5 +1,9 @@
 /** 读取官方账号余额和模型目录；按账号缓存并合并并发刷新。 */
-import { LlmError } from "@deepseek-ai/dsh-llm";
+import {
+  LlmError,
+  type LlmModelContext,
+  type LlmModelInfo,
+} from "@deepseek-ai/dsh-llm";
 import { z } from "zod";
 import { readDesktopCredentials } from "./credentials.js";
 import { readWorkBuddyClientHeaders } from "./client-info.js";
@@ -45,6 +49,31 @@ const CatalogResponse = z.object({
   }),
 });
 const CACHE_MS = 300_000;
+
+export interface WorkBuddyModelInfo extends LlmModelInfo {
+  context?: LlmModelContext;
+  maxOutputTokens?: number;
+}
+
+/** 按官方 CLI 的默认档位规则解析单个模型，缺少有效上限时返回 undefined。 */
+function resolveContextWindow(
+  model: WorkBuddyStatus["models"][number],
+): number | undefined {
+  const { contextWindow, maxInputTokens } = model;
+  const supported = [
+    ...new Set(
+      contextWindow?.supportedLengths?.filter(
+        (length) => maxInputTokens === undefined || length <= maxInputTokens,
+      ),
+    ),
+  ].sort((a, b) => a - b);
+  if (supported.length < 2) return maxInputTokens;
+  const preferred = contextWindow?.defaultLength;
+  return preferred !== undefined && supported.includes(preferred)
+    ? preferred
+    : supported[0];
+}
+
 export interface ApiDependencies {
   credentials?: () => Promise<Credentials>;
   account?: () => Promise<WorkBuddyAccount>;
@@ -151,22 +180,28 @@ export class WorkBuddyApi {
   }
 
   /** 返回可对话模型；无有效目录时传播固定错误。 */
-  async models(account?: WorkBuddyAccount) {
+  async models(account?: WorkBuddyAccount): Promise<WorkBuddyModelInfo[]> {
     const state = await this.status(false, account);
     if (!state.models.length)
       throw new LlmError(
         state.error ?? "WORKBUDDY_MODELS_EMPTY",
         "WORKBUDDY_MODELS_UNAVAILABLE",
       );
-    return state.models.map((model) => ({
-      provider: "workbuddy",
-      id: model.id,
-      name: model.credits?.trim()
-        ? `${model.name} · ${model.credits.trim().replace(/^x/i, "×")}`
-        : model.name,
-      inputModalities: ["text"] satisfies ["text"],
-      ...(model.maxInputTokens ? { contextWindow: model.maxInputTokens } : {}),
-    }));
+    return state.models.map((model) => {
+      const contextWindow = resolveContextWindow(model);
+      return {
+        provider: "workbuddy",
+        id: model.id,
+        name: model.credits?.trim()
+          ? `${model.name} · ${model.credits.trim().replace(/^x/i, "×")}`
+          : model.name,
+        inputModalities: ["text"],
+        ...(contextWindow === undefined ? {} : { context: { contextWindow } }),
+        ...(model.maxOutputTokens === undefined
+          ? {}
+          : { maxOutputTokens: model.maxOutputTokens }),
+      };
+    });
   }
   /** 两项独立只读查询；只向固定官方来源发送凭据，统一校验响应。 */
   private async refresh(account: WorkBuddyAccount): Promise<WorkBuddyStatus> {

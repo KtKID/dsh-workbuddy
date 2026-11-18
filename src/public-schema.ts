@@ -34,11 +34,30 @@ export const LoginViewSchema = z.object({
 export type LoginView = z.infer<typeof LoginViewSchema>;
 export const LOGIN_POLL_INTERVAL_MS = 2_000;
 
+const TokenLimit = z.number().int().positive();
 export const ModelSchema = z.object({
   id: z.string().min(1),
   name: z.string().min(1),
-  maxInputTokens: z.number().positive().optional(),
-  maxOutputTokens: z.number().positive().optional(),
+  maxInputTokens: TokenLimit.optional().catch(undefined),
+  maxOutputTokens: TokenLimit.optional().catch(undefined),
+  contextWindow: z
+    .object({
+      defaultLength: TokenLimit.optional().catch(undefined),
+      supportedLengths: z
+        .array(z.unknown())
+        .transform((lengths) =>
+          lengths.filter(
+            (length): length is number =>
+              typeof length === "number" &&
+              Number.isSafeInteger(length) &&
+              length > 0,
+          ),
+        )
+        .optional()
+        .catch(undefined),
+    })
+    .optional()
+    .catch(undefined),
   credits: z.string().optional(),
 });
 export const BalanceSchema = z.object({

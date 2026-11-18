@@ -7,12 +7,35 @@
 | `transport`    | `cli`                                                                                      | 使用本机官方 CLI；`direct` 为历史直连诊断模式，其既有实测记录包含渠道拒绝 |
 | `model`        | `deepseek-v4-flash`                                                                        | 适配器独立使用时的模型默认值；聊天使用 DSH 选中的模型                     |
 | `timeoutMs`    | `60000`                                                                                    | 账号查询和 direct 请求的超时毫秒数                                        |
-| `maxTokens`    | `512`                                                                                      | 适配器声明的默认值；直连模式发送该限制，官方 CLI 模型参数由 CLI 自身管理  |
+| `maxTokens`    | `512`                                                                                      | 直连模式默认输出上限；CLI 模式优先用官方模型目录的输出上限计算压缩余量    |
 | `electronPath` | `/Applications/WorkBuddy.app/Contents/MacOS/Electron`                                      | 本机 WorkBuddy Electron；CLI 位置根据应用目录推导                         |
 | `authFile`     | `~/Library/Application Support/CodeBuddyExtension/Data/Public/auth/workbuddy-desktop.info` | 当前桌面登录文件                                                          |
 | `traceDir`     | `$DSH_HOME/workbuddy/transport`，DSH_HOME 空时为 `~/.dsh/workbuddy/transport`              | 本插件的传输诊断目录                                                      |
 
 `cliPath` 与 `credentialsFile` 为独立包的可选绝对路径配置。前者选择官方 CLI 的 `dist/codebuddy-lite-wb.mjs`，后者直接读取本人私有登录文件；配置 `credentialsFile` 时使用该文件，其他情况使用桌面 Electron 读取登录态。CLI 目录应包含配套的 `product.json`、`package.json` 和运行依赖，以便执行与客户端版本标识保持一致。
+
+切换模型时，DSH 使用当前 WorkBuddy 账号目录中该模型的默认上下文档位。有多个有效档位且默认值缺失或失效时，采用最小有效档位；目录未提供可切换档位时，采用该模型的 `maxInputTokens`。CLI 模式按该模型的 `maxOutputTokens` 预留输出空间，目录缺少有效输出上限时使用 `maxTokens`。官方 CLI 管理实际生成参数。
+
+当输出上限与宿主默认的 65,536 token 压缩余量占满窗口时，为该模型调低压缩余量。将以下 `modelPolicies` 合并到负责该会话的 `compaction-basic` 实例的 `config` 中，保留现有条目。
+
+```yaml
+modelPolicies:
+  - provider: workbuddy
+    model: kimi-k2-instruct-taiji
+    headroomTokens: 4096
+  - provider: workbuddy
+    model: deepseek-v3-2-volc
+    headroomTokens: 16384
+  - provider: workbuddy
+    model: deepseek-v3-1-volc
+    headroomTokens: 16384
+  - provider: workbuddy
+    model: deepseek-v3-1-lkeap
+    headroomTokens: 16384
+  - provider: workbuddy
+    model: deepseek-v3-1
+    headroomTokens: 16384
+```
 
 私有凭据文件采用插件 `CredentialsSchema` 定义的 JSON，归当前运行用户所有，权限仅限本人，大小最多 64 KB，expiresAt 使用尚未到期的毫秒时间戳。无效、过期、宽权限和符号链接文件按认证失败处理。`dsh-workbuddy-export` 脚本提供 `--dest` 新目标目录以及可选的 `--electron`、`--auth` 源路径，将当前桌面登录与配套 CLI 导出到本人部署使用的私有目录；目录中的 credentials.json 按私有数据保存。凭据到期后在桌面端确认登录并重新导出。
 

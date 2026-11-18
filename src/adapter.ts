@@ -7,10 +7,10 @@ import {
   LlmError,
   type GenerateOptions,
   type StreamChunk,
-  type LlmModelInfo,
   type LlmResolvedModelInfo,
 } from "@deepseek-ai/dsh-llm";
 import { z } from "zod";
+import type { WorkBuddyModelInfo } from "./api.js";
 import type { WorkBuddyTrace } from "./public-schema.js";
 import { readWorkBuddyClientHeaders } from "./client-info.js";
 import { readDesktopCredentials } from "./credentials.js";
@@ -28,7 +28,9 @@ export interface TransportDependencies {
   account?: () => Promise<WorkBuddyAccount>;
   fetch?: typeof globalThis.fetch;
   onCredit?: (credit: number) => void;
-  models?: (account?: WorkBuddyAccount) => Promise<readonly LlmModelInfo[]>;
+  models?: (
+    account?: WorkBuddyAccount,
+  ) => Promise<readonly WorkBuddyModelInfo[]>;
   onTrace?: (sessionId: string | undefined, trace: WorkBuddyTrace) => void;
   onPermission?: (
     options: GenerateOptions,
@@ -50,7 +52,9 @@ export class WorkBuddyAdapter extends LlmAdapter {
   }
 
   /** 读取远端对话模型目录；独立夹具可使用配置中的单模型。 */
-  override listModels(provider: string): Promise<readonly LlmModelInfo[]> {
+  override listModels(
+    provider: string,
+  ): Promise<readonly WorkBuddyModelInfo[]> {
     if (this.dependencies.models) return this.dependencies.models();
     return Promise.resolve([
       {
@@ -67,14 +71,23 @@ export class WorkBuddyAdapter extends LlmAdapter {
     provider: string,
     model: string,
   ): Promise<LlmResolvedModelInfo> {
-    return this.resolveSelectedModel(provider, model);
+    const { maxOutputTokens, ...entry } = await this.resolveSelectedModel(
+      provider,
+      model,
+    );
+    // CLI 自行使用目录的输出上限，宿主切换模型时按同一上限预留。
+    const defaultMaxTokens =
+      this.config.transport === "cli"
+        ? (maxOutputTokens ?? this.config.maxTokens)
+        : this.config.maxTokens;
+    return { ...entry, defaultMaxTokens };
   }
 
   private async resolveSelectedModel(
     provider: string,
     model: string,
     account?: WorkBuddyAccount,
-  ): Promise<LlmResolvedModelInfo> {
+  ): Promise<WorkBuddyModelInfo> {
     if (provider !== "workbuddy")
       throw new LlmError("WORKBUDDY_INVALID_MODEL", "WORKBUDDY_INVALID_MODEL");
     const models = this.dependencies.models
@@ -83,7 +96,7 @@ export class WorkBuddyAdapter extends LlmAdapter {
     const entry = models.find((entry) => entry.id === model);
     if (!entry)
       throw new LlmError("WORKBUDDY_INVALID_MODEL", "WORKBUDDY_INVALID_MODEL");
-    return { ...entry, defaultMaxTokens: this.config.maxTokens };
+    return entry;
   }
 
   /** 输入完整文本请求，返回模型流；协议或范围错误向 LLM 服务传播。 */

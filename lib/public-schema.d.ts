@@ -62,8 +62,12 @@ export declare const LOGIN_POLL_INTERVAL_MS = 2000;
 export declare const ModelSchema: z.ZodObject<{
     id: z.ZodString;
     name: z.ZodString;
-    maxInputTokens: z.ZodOptional<z.ZodNumber>;
-    maxOutputTokens: z.ZodOptional<z.ZodNumber>;
+    maxInputTokens: z.ZodCatch<z.ZodOptional<z.ZodNumber>>;
+    maxOutputTokens: z.ZodCatch<z.ZodOptional<z.ZodNumber>>;
+    contextWindow: z.ZodCatch<z.ZodOptional<z.ZodObject<{
+        defaultLength: z.ZodCatch<z.ZodOptional<z.ZodNumber>>;
+        supportedLengths: z.ZodCatch<z.ZodOptional<z.ZodPipe<z.ZodArray<z.ZodUnknown>, z.ZodTransform<number[], unknown[]>>>>;
+    }, z.core.$strip>>>;
     credits: z.ZodOptional<z.ZodString>;
 }, z.core.$strip>;
 export declare const BalanceSchema: z.ZodObject<{
@@ -78,8 +82,12 @@ export declare const StatusSchema: z.ZodObject<{
     models: z.ZodArray<z.ZodObject<{
         id: z.ZodString;
         name: z.ZodString;
-        maxInputTokens: z.ZodOptional<z.ZodNumber>;
-        maxOutputTokens: z.ZodOptional<z.ZodNumber>;
+        maxInputTokens: z.ZodCatch<z.ZodOptional<z.ZodNumber>>;
+        maxOutputTokens: z.ZodCatch<z.ZodOptional<z.ZodNumber>>;
+        contextWindow: z.ZodCatch<z.ZodOptional<z.ZodObject<{
+            defaultLength: z.ZodCatch<z.ZodOptional<z.ZodNumber>>;
+            supportedLengths: z.ZodCatch<z.ZodOptional<z.ZodPipe<z.ZodArray<z.ZodUnknown>, z.ZodTransform<number[], unknown[]>>>>;
+        }, z.core.$strip>>>;
         credits: z.ZodOptional<z.ZodString>;
     }, z.core.$strip>>;
     balance: z.ZodNullable<z.ZodObject<{
